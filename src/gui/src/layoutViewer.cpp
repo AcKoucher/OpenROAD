@@ -264,14 +264,6 @@ void LayoutViewer::setPixelsPerDBU(qreal pixels_per_dbu)
     return;
   }
 
-  bool scroll_bars_visible = scroller_->horizontalScrollBar()->isVisible()
-                             || scroller_->verticalScrollBar()->isVisible();
-  bool zoomed_out = pixels_per_dbu_ /*old*/ > pixels_per_dbu /*new*/;
-
-  if (!scroll_bars_visible && zoomed_out) {
-    return;
-  }
-
   const Rect current_viewer(0,
                             0,
                             this->size().width() / pixels_per_dbu_,
@@ -402,9 +394,49 @@ void LayoutViewer::zoomOut(const odb::Point& focus, bool do_delta_focus)
 void LayoutViewer::zoom(const odb::Point& focus,
                         qreal factor,
                         bool do_delta_focus)
-{
+{ 
   qreal old_pixels_per_dbu = pixels_per_dbu_;
+  qreal new_pixels_per_dbu = old_pixels_per_dbu * factor;
 
+  bool scroll_bars_visible = scroller_->horizontalScrollBar()->isVisible()
+                             || scroller_->verticalScrollBar()->isVisible();
+
+  if (!scroll_bars_visible) {
+    const Rect padded_rect = getPaddedRect(getBounds());
+
+    const float new_width = padded_rect.dx() * new_pixels_per_dbu;
+    const float new_height = padded_rect.dy() * new_pixels_per_dbu;
+
+    bool new_padded_rect_fits_in_viewport
+        = new_width > scroller_->maximumViewportSize().width()
+          || new_height > scroller_->maximumViewportSize().height();
+
+    // handle the trasition between the zoom by resizing and by manually
+    // updating the resolution
+    if (new_padded_rect_fits_in_viewport) {
+      updateResolutionAndCenter(
+        new_pixels_per_dbu, old_pixels_per_dbu, focus, do_delta_focus);
+    } else {
+      pixels_per_dbu_ = new_pixels_per_dbu; // update resolution manually
+
+      /*
+      TO DO: adjust centering_shift for zooming in/out the cursor direction
+      */
+
+      fullRepaint();
+    }
+  } else {
+    updateResolutionAndCenter(
+        new_pixels_per_dbu, old_pixels_per_dbu, focus, do_delta_focus);
+  }
+}
+
+// Here the zoom effect will be achieved by resizing
+void LayoutViewer::updateResolutionAndCenter(qreal new_resolution,
+                                             qreal old_resolution,
+                                             const odb::Point& focus,
+                                             bool do_delta_focus)
+{
   // focus to center, this is only used if doing delta_focus
   // this holds the distance (x and y) from the desired focus point and the
   // current center so the new center can be computed and ensure that the new
@@ -412,11 +444,11 @@ void LayoutViewer::zoom(const odb::Point& focus,
   odb::Point center_delta(focus.x() - center_.x(), focus.y() - center_.y());
 
   // update resolution
-  setPixelsPerDBU(pixels_per_dbu_ * factor);
+  setPixelsPerDBU(new_resolution);
 
   odb::Point new_center = focus;
   if (do_delta_focus) {
-    qreal actual_factor = pixels_per_dbu_ / old_pixels_per_dbu;
+    qreal actual_factor = pixels_per_dbu_ / old_resolution;
     // new center based on focus
     // adjust such that the new center follows the mouse
     new_center = odb::Point(focus.x() - center_delta.x() / actual_factor,
@@ -1177,10 +1209,20 @@ void LayoutViewer::mouseMoveEvent(QMouseEvent* event)
   if (is_view_dragging_) {
     QPoint dragging_delta = mouse_move_pos_ - mouse_press_pos_;
 
-    scroller_->horizontalScrollBar()->setValue(
-        scroller_->horizontalScrollBar()->value() - dragging_delta.x());
-    scroller_->verticalScrollBar()->setValue(
-        scroller_->verticalScrollBar()->value() - dragging_delta.y());
+    bool scroll_bars_visible = scroller_->horizontalScrollBar()->isVisible()
+                            || scroller_->verticalScrollBar()->isVisible();
+    if (scroll_bars_visible) {
+      scroller_->horizontalScrollBar()->setValue(
+          scroller_->horizontalScrollBar()->value() - dragging_delta.x());
+      scroller_->verticalScrollBar()->setValue(
+          scroller_->verticalScrollBar()->value() - dragging_delta.y());
+    } else {
+      /*
+        TO DO: Move the design by changing the centering_shift_
+      */
+
+      fullRepaint();
+    }
   }
 
   if (building_ruler_) {

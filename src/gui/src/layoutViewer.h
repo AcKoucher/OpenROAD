@@ -307,6 +307,10 @@ class LayoutViewer : public QWidget
   Selected selectAtPoint(const odb::Point& pt_dbu);
 
   void zoom(const odb::Point& focus, qreal factor, bool do_delta_focus);
+  void updateResolutionAndCenter(qreal new_resolution,
+                                 qreal old_resolution,
+                                 const odb::Point& focus,
+                                 bool do_delta_focus);
 
   qreal computePixelsPerDBU(const QSize& size, const odb::Rect& dbu_rect);
   odb::Rect getBounds() const;
