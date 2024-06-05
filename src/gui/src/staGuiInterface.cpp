@@ -880,6 +880,30 @@ std::unique_ptr<TimingPathNode> STAGuiInterface::getTimingNode(
   return nullptr;
 }
 
+void STAGuiInterface::makeFalsePaths(const StaPins& from, const StaPins& to)
+{
+  sta::MinMaxAll* min_max_all
+      = use_max_ ? sta::MinMaxAll::max() : sta::MinMaxAll::min();
+
+  sta::ExceptionFrom* exception_from = getExceptionFrom(from);
+  sta_->makeFalsePath(exception_from, nullptr, nullptr, min_max_all, "");
+
+  sta::ExceptionTo* exception_to = getExceptionTo(to);
+  sta_->makeFalsePath(nullptr, nullptr, exception_to, min_max_all, "");
+}
+
+void STAGuiInterface::resetPaths(const StaPins& from, const StaPins& to)
+{
+  sta::MinMaxAll* min_max_all
+      = use_max_ ? sta::MinMaxAll::max() : sta::MinMaxAll::min();
+
+  sta::ExceptionFrom* exception_from = getExceptionFrom(from);
+  sta_->resetPath(exception_from, nullptr, nullptr, min_max_all);
+
+  sta::ExceptionTo* exception_to = getExceptionTo(to);
+  sta_->resetPath(nullptr, nullptr, exception_to, min_max_all);
+}
+
 TimingPathList STAGuiInterface::getTimingPaths(const sta::Pin* thru) const
 {
   return getTimingPaths({}, {{thru}}, {});
@@ -894,13 +918,7 @@ TimingPathList STAGuiInterface::getTimingPaths(
 
   initSTA();
 
-  sta::ExceptionFrom* e_from = nullptr;
-  if (!from.empty()) {
-    sta::PinSet* pins = new sta::PinSet(getNetwork());
-    pins->insert(from.begin(), from.end());
-    e_from = sta_->makeExceptionFrom(
-        pins, nullptr, nullptr, sta::RiseFallBoth::riseFall());
-  }
+  sta::ExceptionFrom* e_from = getExceptionFrom(from);
   sta::ExceptionThruSeq* e_thrus = nullptr;
   if (!thrus.empty()) {
     for (const auto& thru_set : thrus) {
@@ -916,16 +934,7 @@ TimingPathList STAGuiInterface::getTimingPaths(
           pins, nullptr, nullptr, sta::RiseFallBoth::riseFall()));
     }
   }
-  sta::ExceptionTo* e_to = nullptr;
-  if (!to.empty()) {
-    sta::PinSet* pins = new sta::PinSet(getNetwork());
-    pins->insert(to.begin(), to.end());
-    e_to = sta_->makeExceptionTo(pins,
-                                 nullptr,
-                                 nullptr,
-                                 sta::RiseFallBoth::riseFall(),
-                                 sta::RiseFallBoth::riseFall());
-  }
+  sta::ExceptionTo* e_to = getExceptionTo(to);
 
   sta::Search* search = sta_->search();
 
@@ -1009,6 +1018,33 @@ TimingPathList STAGuiInterface::getTimingPaths(
   }
 
   return paths;
+}
+
+sta::ExceptionFrom* STAGuiInterface::getExceptionFrom(const StaPins& from) const
+{
+  sta::ExceptionFrom* e_from = nullptr;
+  if (!from.empty()) {
+    sta::PinSet* pins = new sta::PinSet(getNetwork());
+    pins->insert(from.begin(), from.end());
+    e_from = sta_->makeExceptionFrom(
+        pins, nullptr, nullptr, sta::RiseFallBoth::riseFall());
+  }
+  return e_from;
+}
+
+sta::ExceptionTo* STAGuiInterface::getExceptionTo(const StaPins& to) const
+{
+  sta::ExceptionTo* e_to = nullptr;
+  if (!to.empty()) {
+    sta::PinSet* pins = new sta::PinSet(getNetwork());
+    pins->insert(to.begin(), to.end());
+    e_to = sta_->makeExceptionTo(pins,
+                                 nullptr,
+                                 nullptr,
+                                 sta::RiseFallBoth::riseFall(),
+                                 sta::RiseFallBoth::riseFall());
+  }
+  return e_to;
 }
 
 ConeDepthMapPinSet STAGuiInterface::getFaninCone(const sta::Pin* pin) const

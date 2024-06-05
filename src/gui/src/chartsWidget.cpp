@@ -126,6 +126,8 @@ void ChartsWidget::changeMode()
   }
 
   clearChart();
+  clearBuckets();
+  resetLimits();
 
   if (mode_menu_->currentIndex() == SLACK_HISTOGRAM) {
     if (filters_menu_->currentIndex() != 0) {
@@ -191,13 +193,6 @@ void ChartsWidget::showToolTip(bool is_hovering, int bar_index)
 
 void ChartsWidget::clearChart()
 {
-  buckets_->positive.clear();
-  buckets_->negative.clear();
-
-  // reset limits
-  max_slack_ = 0;
-  min_slack_ = std::numeric_limits<float>::max();
-
   chart_->setTitle("");
   chart_->removeAllSeries();
 
@@ -206,6 +201,19 @@ void ChartsWidget::clearChart()
 
   axis_y_->setTitleText("");
   axis_y_->hide();
+}
+
+void ChartsWidget::resetLimits()
+{
+  // reset limits
+  max_slack_ = 0;
+  min_slack_ = std::numeric_limits<float>::max();
+}
+
+void ChartsWidget::clearBuckets()
+{
+  buckets_->positive.clear();
+  buckets_->negative.clear();
 }
 
 void ChartsWidget::setSlackHistogram()
@@ -222,7 +230,7 @@ void ChartsWidget::setSlackHistogram()
 
   setClocks(data.clocks);
   setBucketInterval();
-  populateBuckets(&(data.constrained_pins), nullptr);
+  populateBuckets(data.constrained_pins);
 
   setVisualConfig();
 }
@@ -288,6 +296,8 @@ void ChartsWidget::removeUnconstrainedPinsAndSetLimits(StaPins& end_points)
     }
   }
 
+  // TO DO: consider this only for no filter.
+
   if (unconstrained_count != 0 && unconstrained_count != all_endpoints_count) {
     const QString label_message = "Number of unconstrained pins: ";
     QString unconstrained_number;
@@ -298,7 +308,7 @@ void ChartsWidget::removeUnconstrainedPinsAndSetLimits(StaPins& end_points)
 
 // We define the slack interval as being inclusive in its lower
 // boundary and exclusive in upper: [lower upper)
-void ChartsWidget::populateBuckets(StaPins* end_points, TimingPathList* paths)
+void ChartsWidget::populateBuckets(const StaPins& end_points)
 {
   sta::Unit* time_unit = sta_->units()->timeUnit();
 
@@ -315,26 +325,13 @@ void ChartsWidget::populateBuckets(StaPins* end_points, TimingPathList* paths)
 
     std::vector<const sta::Pin*> pos_bucket, neg_bucket;
 
-    if (end_points) {
-      for (const sta::Pin* pin : *end_points) {
-        const float slack = time_unit->staToUser(stagui_->getPinSlack(pin));
+    for (const sta::Pin* pin : end_points) {
+      const float slack = time_unit->staToUser(stagui_->getPinSlack(pin));
 
-        if (negative_lower <= slack && slack < negative_upper) {
-          neg_bucket.push_back(pin);
-        } else if (positive_lower <= slack && slack < positive_upper) {
-          pos_bucket.push_back(pin);
-        }
-      }
-    } else if (paths) {
-      for (const std::unique_ptr<TimingPath>& path : *paths) {
-        const float slack = time_unit->staToUser(path->getSlack());
-        const sta::Pin* end_point = path->getEndStageNode()->getPinAsSTA();
-
-        if (negative_lower <= slack && slack < negative_upper) {
-          neg_bucket.push_back(end_point);
-        } else if (positive_lower <= slack && slack < positive_upper) {
-          pos_bucket.push_back(end_point);
-        }
+      if (negative_lower <= slack && slack < negative_upper) {
+        neg_bucket.push_back(pin);
+      } else if (positive_lower <= slack && slack < positive_upper) {
+        pos_bucket.push_back(pin);
       }
     }
 
@@ -372,6 +369,10 @@ void ChartsWidget::emitEndPointsInBucket(const int bar_index)
   std::vector<const sta::Pin*> end_points;
 
   if (buckets_->negative.empty()) {
+    if (buckets_->positive.empty()) {
+      return;
+    }
+
     end_points = buckets_->positive[bar_index];
   } else {
     const int num_of_neg_buckets = static_cast<int>(buckets_->negative.size());
@@ -630,30 +631,62 @@ void ChartsWidget::changeStartEndFilter()
     return;
   }
 
-  clearChart();
+  StaPins end_points = stagui_->getEndPoints();
 
-  StaPins end_points;
-  TimingPathList paths;
   const int filter_index = filters_menu_->currentIndex();
+  const int no_filter_index_offset = 1;
+  const int path_type = filter_index - no_filter_index_offset;
+
+  ITermBTermPinsLists start_pins;
+  ITermBTermPinsLists end_pins;
+
+  bool paths_modified = false;
 
   if (filter_index > 0) {
-    const int no_filter_index_offset = 1;
-    const StartEndPathType path_type
-        = static_cast<StartEndPathType>(filter_index - no_filter_index_offset);
+    start_pins = separatePinsIntoBTermsAndITerms(stagui_->getStartPoints());
+    end_pins = separatePinsIntoBTermsAndITerms(end_points);
 
-    paths = fetchPathsBasedOnStartEnd(path_type);
-    setLimits(paths);
-  } else {
-    end_points = stagui_->getEndPoints();
-    removeUnconstrainedPinsAndSetLimits(end_points);
+    // To avoid searching the paths based on start/end (which can be slow
+    // for huge designs) we make the paths of the opposite start/end
+    // combination false so we can just ask sta for the worst slack on
+    // all endpoints.
+    auto makeFalsePaths = [this](const StaPins& from, const StaPins& to) {
+      stagui_->makeFalsePaths(from, to);
+    };
+
+    logger_->report("Setting false paths");
+    modifyPaths(static_cast<StartEndPathType>(path_type),
+                start_pins,
+                end_pins,
+                makeFalsePaths);
+    logger_->report("Done setting false paths");
+
+    paths_modified = true;
   }
 
-  setBucketInterval();
+  resetLimits();
+  removeUnconstrainedPinsAndSetLimits(end_points);
 
-  if (!end_points.empty()) {
-    populateBuckets(&end_points, nullptr);
-  } else if (!paths.empty()) {
-    populateBuckets(nullptr, &paths);
+  clearBuckets();
+
+  if (end_points.size() != 0) {
+    clearChart();
+    setBucketInterval();
+    populateBuckets(end_points);
+  }
+
+  if (paths_modified) {
+    // Restore timing for the paths we set to false.
+    auto resetPaths = [this](const StaPins& from, const StaPins& to) {
+      stagui_->resetPaths(from, to);
+    };
+
+    logger_->report("Resetting false paths");
+    modifyPaths(static_cast<StartEndPathType>(path_type),
+                start_pins,
+                end_pins,
+                resetPaths);
+    logger_->report("Done resetting false paths");
   }
 
   setVisualConfig();
@@ -661,61 +694,33 @@ void ChartsWidget::changeStartEndFilter()
   prev_filter_index_ = filter_index;
 }
 
-void ChartsWidget::setLimits(const TimingPathList& paths)
+void ChartsWidget::modifyPaths(const StartEndPathType path_type,
+                               const ITermBTermPinsLists& start_pins,
+                               const ITermBTermPinsLists& end_pins,
+                               setFalseOrResetPaths setFalseOrResetPaths)
 {
-  sta::Unit* time_unit = sta_->units()->timeUnit();
-  for (const std::unique_ptr<TimingPath>& path : paths) {
-    const float slack = time_unit->staToUser(path->getSlack());
-
-    min_slack_ = std::min(slack, min_slack_);
-    max_slack_ = std::max(slack, max_slack_);
-  }
-}
-
-TimingPathList ChartsWidget::fetchPathsBasedOnStartEnd(
-    const StartEndPathType path_type)
-{
-  ITermBTermPinsLists start_pins
-      = separatePinsIntoBTermsAndITerms(stagui_->getStartPoints());
-
-  ITermBTermPinsLists end_pins
-      = separatePinsIntoBTermsAndITerms(stagui_->getEndPoints());
-
-  // Copy current values to reset after fetching.
-  const int initial_max_path_count = stagui_->getMaxPathCount();
-  const bool one_path_per_end_point = stagui_->isOnePathPerEndpoint();
-
-  const int new_max_path_count = static_cast<int>(end_pins.first.size())
-                                 + static_cast<int>(end_pins.second.size());
-
-  stagui_->setMaxPathCount(new_max_path_count);
-  stagui_->setOnePathPerEndpoint(true);
-
-  TimingPathList paths;
-
   switch (path_type) {
     case RegisterToRegister: {
-      paths = stagui_->getTimingPaths(start_pins.first, {}, end_pins.first);
+      setFalseOrResetPaths(start_pins.second, {});
+      setFalseOrResetPaths({}, end_pins.second);
       break;
     }
     case RegisterToIO: {
-      paths = stagui_->getTimingPaths(start_pins.first, {}, end_pins.second);
+      setFalseOrResetPaths(start_pins.second, {});
+      setFalseOrResetPaths({}, end_pins.first);
       break;
     }
     case IOToRegister: {
-      paths = stagui_->getTimingPaths(start_pins.second, {}, end_pins.first);
+      setFalseOrResetPaths(start_pins.first, {});
+      setFalseOrResetPaths({}, end_pins.second);
       break;
     }
     case IOToIO: {
-      paths = stagui_->getTimingPaths(start_pins.second, {}, end_pins.second);
+      setFalseOrResetPaths(start_pins.first, {});
+      setFalseOrResetPaths({}, end_pins.first);
       break;
     }
   }
-
-  stagui_->setMaxPathCount(initial_max_path_count);
-  stagui_->setOnePathPerEndpoint(one_path_per_end_point);
-
-  return paths;
 }
 
 ITermBTermPinsLists ChartsWidget::separatePinsIntoBTermsAndITerms(

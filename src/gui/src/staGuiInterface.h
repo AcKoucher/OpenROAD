@@ -355,6 +355,12 @@ class STAGuiInterface
   bool isIncludeCapturePaths() const { return include_capture_path_; }
   void setIncludeCapturePaths(bool value) { include_capture_path_ = value; }
 
+  void makeFalsePaths(const StaPins& from, const StaPins& to);
+  void resetPaths(const StaPins& from, const StaPins& to);
+
+  sta::ExceptionFrom* getExceptionFrom(const StaPins& from) const;
+  sta::ExceptionTo* getExceptionTo(const StaPins& to) const;
+
   TimingPathList getTimingPaths(const StaPins& from,
                                 const std::vector<StaPins>& thrus,
                                 const StaPins& to) const;

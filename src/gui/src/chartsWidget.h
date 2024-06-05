@@ -56,6 +56,8 @@ namespace gui {
 #ifdef ENABLE_CHARTS
 
 using ITermBTermPinsLists = std::pair<StaPins, StaPins>;
+using setFalseOrResetPaths
+    = std::function<void(const StaPins&, const StaPins&)>;
 
 enum StartEndPathType
 {
@@ -142,12 +144,13 @@ class ChartsWidget : public QDockWidget
 
   SlackHistogramData fetchSlackHistogramData();
   void removeUnconstrainedPinsAndSetLimits(StaPins& end_points);
-  TimingPathList fetchPathsBasedOnStartEnd(const StartEndPathType path_type);
-  StaPins getEndPointsFromPaths(const TimingPathList& paths);
+  void modifyPaths(const StartEndPathType path_type,
+                   const ITermBTermPinsLists& start_points,
+                   const ITermBTermPinsLists& end_points,
+                   setFalseOrResetPaths setFalseOrResetPaths);
   ITermBTermPinsLists separatePinsIntoBTermsAndITerms(const StaPins& pins);
-  void setLimits(const TimingPathList& paths);
 
-  void populateBuckets(StaPins* end_points, TimingPathList* paths);
+  void populateBuckets(const StaPins& end_points);
   std::pair<QBarSet*, QBarSet*> createBarSets();
   void populateBarSets(QBarSet& neg_set, QBarSet& pos_set);
 
@@ -168,6 +171,8 @@ class ChartsWidget : public QDockWidget
   int computeFirstDigit(int value, int digits);
 
   void clearChart();
+  void clearBuckets();
+  void resetLimits();
 
   utl::Logger* logger_;
   sta::dbSta* sta_;
