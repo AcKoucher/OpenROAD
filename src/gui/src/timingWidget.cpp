@@ -51,6 +51,7 @@ namespace gui {
 TimingWidget::TimingWidget(QWidget* parent)
     : QDockWidget("Timing Report", parent),
       commands_menu_(new QMenu("Commands Menu", this)),
+      detail_path_pin_menu_(new QMenu("Detail Path Pin Menu")),
       setup_timing_table_view_(new QTableView(this)),
       hold_timing_table_view_(new QTableView(this)),
       path_details_table_view_(new QTableView(this)),
@@ -107,6 +108,7 @@ TimingWidget::TimingWidget(QWidget* parent)
   setWidget(container);
 
   addCommandsMenuActions();
+  addDetailPathPinMenuActions();
 
   connect(dbchange_listener_,
           &GuiDBChangeListener::dbUpdated,
@@ -239,6 +241,11 @@ void TimingWidget::init(sta::dbSta* sta)
           this,
           &TimingWidget::showCommandsMenu);
 
+  connect(path_details_table_view_,
+          &QTableView::customContextMenuRequested,
+          this,
+          &TimingWidget::showDetailPathPinMenu);
+
   connect(hold_timing_table_view_->selectionModel(),
           &QItemSelectionModel::selectionChanged,
           this,
@@ -346,6 +353,39 @@ void TimingWidget::addCommandsMenuActions()
           });
 }
 
+void TimingWidget::addDetailPathPinMenuActions()
+{
+  QMenu* go_to_menu = detail_path_pin_menu_->addMenu("Go to");
+
+  go_to_menu->addAction("Verilog Line");
+  go_to_menu->addAction("Instance");
+}
+
+void TimingWidget::showDetailPathPinMenu(const QPoint& pos)
+{
+  const int invalid_index = -1;
+  if (detail_widget_->currentIndex() == invalid_index) {
+    return;
+  }
+
+  QTableView* current_table = nullptr;
+
+  const int data_path_tab_index = 0;
+  if (detail_widget_->isTabVisible(data_path_tab_index)) {
+    current_table = path_details_table_view_;
+  } else {
+    current_table = capture_details_table_view_;
+  }
+
+  const int pin_column = 0;
+  if (current_table->columnAt(pos.x()) != pin_column) {
+    return;
+  }
+
+  detail_path_table_index_ = current_table->indexAt(pos);
+  detail_path_pin_menu_->popup(current_table->viewport()->mapToGlobal(pos));
+}
+
 void TimingWidget::showCommandsMenu(const QPoint& pos)
 {
   if (!focus_view_) {
@@ -353,7 +393,6 @@ void TimingWidget::showCommandsMenu(const QPoint& pos)
   }
 
   timing_paths_table_index_ = focus_view_->indexAt(pos);
-
   commands_menu_->popup(focus_view_->viewport()->mapToGlobal(pos));
 }
 
