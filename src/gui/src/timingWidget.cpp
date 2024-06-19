@@ -242,11 +242,6 @@ void TimingWidget::init(sta::dbSta* sta)
           this,
           &TimingWidget::showCommandsMenu);
 
-  connect(path_details_table_view_,
-          &QTableView::customContextMenuRequested,
-          this,
-          &TimingWidget::showDetailPathPinMenu);
-
   connect(hold_timing_table_view_->selectionModel(),
           &QItemSelectionModel::selectionChanged,
           this,
@@ -262,10 +257,20 @@ void TimingWidget::init(sta::dbSta* sta)
           this,
           &TimingWidget::selectedDetailRowChanged);
 
+  connect(path_details_table_view_,
+          &QTableView::customContextMenuRequested,
+          this,
+          &TimingWidget::showDetailPathPinMenu);
+
   connect(capture_details_table_view_->selectionModel(),
           &QItemSelectionModel::selectionChanged,
           this,
           &TimingWidget::selectedCaptureRowChanged);
+
+  connect(capture_details_table_view_,
+          &QTableView::customContextMenuRequested,
+          this,
+          &TimingWidget::showDetailPathPinMenu);
 
   clearPathDetails();
 }
@@ -391,7 +396,7 @@ void TimingWidget::showDetailPathPinMenu(const QPoint& pos)
   }
 
   const int data_path_tab_index = 0;
-  if (detail_widget_->isTabVisible(data_path_tab_index)) {
+  if (detail_widget_->currentIndex() == data_path_tab_index) {
     focus_detail_view_ = path_details_table_view_;
   } else {
     focus_detail_view_ = capture_details_table_view_;
