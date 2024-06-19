@@ -128,6 +128,7 @@ class TimingWidget : public QDockWidget
 
  private slots:
   void hideColumn(int index, bool checked);
+  void selectAndEmitDetailPathTerm();
 
  protected:
   void keyPressEvent(QKeyEvent* key_event) override;
@@ -176,6 +177,7 @@ class TimingWidget : public QDockWidget
   QTabWidget* detail_widget_;
 
   QTableView* focus_view_;
+  QTableView* focus_detail_view_;
 
   QVector<bool> initial_columns_visibility_;  // from settings
 };

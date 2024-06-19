@@ -71,7 +71,8 @@ TimingWidget::TimingWidget(QWidget* parent)
       delay_detail_splitter_(new QSplitter(Qt::Vertical, this)),
       delay_widget_(new QTabWidget(this)),
       detail_widget_(new QTabWidget(this)),
-      focus_view_(nullptr)
+      focus_view_(nullptr),
+      focus_detail_view_(nullptr)
 {
   setObjectName("timing_report");  // for settings
 
@@ -357,8 +358,29 @@ void TimingWidget::addDetailPathPinMenuActions()
 {
   QMenu* go_to_menu = detail_path_pin_menu_->addMenu("Go to");
 
+  connect(go_to_menu->addAction("Terminal Inspection"),
+          &QAction::triggered,
+          [this] { selectAndEmitDetailPathTerm(); });
+
   go_to_menu->addAction("Verilog Line");
-  go_to_menu->addAction("Instance");
+}
+
+void TimingWidget::selectAndEmitDetailPathTerm()
+{
+  TimingPathDetailModel* focus_detail_model
+      = static_cast<TimingPathDetailModel*>(focus_detail_view_->model());
+  const TimingPathNode* selected_node
+      = focus_detail_model->getNodeAt(detail_path_table_index_);
+
+  Gui* gui = Gui::get();
+  odb::dbITerm* iterm = selected_node->getPinAsITerm();
+  if (iterm) {
+    emit inspect(gui->makeSelected(iterm));
+    return;
+  }
+
+  odb::dbBTerm* bterm = selected_node->getPinAsBTerm();
+  emit inspect(gui->makeSelected(bterm));
 }
 
 void TimingWidget::showDetailPathPinMenu(const QPoint& pos)
@@ -368,22 +390,21 @@ void TimingWidget::showDetailPathPinMenu(const QPoint& pos)
     return;
   }
 
-  QTableView* current_table = nullptr;
-
   const int data_path_tab_index = 0;
   if (detail_widget_->isTabVisible(data_path_tab_index)) {
-    current_table = path_details_table_view_;
+    focus_detail_view_ = path_details_table_view_;
   } else {
-    current_table = capture_details_table_view_;
+    focus_detail_view_ = capture_details_table_view_;
   }
 
   const int pin_column = 0;
-  if (current_table->columnAt(pos.x()) != pin_column) {
+  if (focus_detail_view_->columnAt(pos.x()) != pin_column) {
     return;
   }
 
-  detail_path_table_index_ = current_table->indexAt(pos);
-  detail_path_pin_menu_->popup(current_table->viewport()->mapToGlobal(pos));
+  detail_path_table_index_ = focus_detail_view_->indexAt(pos);
+  detail_path_pin_menu_->popup(
+      focus_detail_view_->viewport()->mapToGlobal(pos));
 }
 
 void TimingWidget::showCommandsMenu(const QPoint& pos)
