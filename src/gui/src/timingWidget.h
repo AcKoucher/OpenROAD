@@ -124,11 +124,10 @@ class TimingWidget : public QDockWidget
   void writePathReportCommand(const QModelIndex& selected_index,
                               const CommandType& type);
   void showCommandsMenu(const QPoint& pos);
-  void showDetailPathPinMenu(const QPoint& pos);
 
  private slots:
   void hideColumn(int index, bool checked);
-  void selectAndEmitDetailPathTerm();
+  void inspectPin(const QPoint& pos);
 
  protected:
   void keyPressEvent(QKeyEvent* key_event) override;
@@ -139,7 +138,6 @@ class TimingWidget : public QDockWidget
   void copy();
   void setColumnDisplayMenu();
   void addCommandsMenuActions();
-  void addDetailPathPinMenuActions();
   void populateAndSortModels(const std::set<const sta::Pin*>& from,
                              const std::vector<std::set<const sta::Pin*>>& thru,
                              const std::set<const sta::Pin*>& to);
@@ -147,10 +145,8 @@ class TimingWidget : public QDockWidget
   QVariantList getColumnsVisibility() const;
 
   QMenu* commands_menu_;
-  QMenu* detail_path_pin_menu_;
 
   QModelIndex timing_paths_table_index_;
-  QModelIndex detail_path_table_index_;
 
   QTableView* setup_timing_table_view_;
   QTableView* hold_timing_table_view_;
@@ -177,7 +173,6 @@ class TimingWidget : public QDockWidget
   QTabWidget* detail_widget_;
 
   QTableView* focus_view_;
-  QTableView* focus_detail_view_;
 
   QVector<bool> initial_columns_visibility_;  // from settings
 };

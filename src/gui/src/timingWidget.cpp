@@ -51,7 +51,6 @@ namespace gui {
 TimingWidget::TimingWidget(QWidget* parent)
     : QDockWidget("Timing Report", parent),
       commands_menu_(new QMenu("Commands Menu", this)),
-      detail_path_pin_menu_(new QMenu("Detail Path Pin Menu")),
       setup_timing_table_view_(new QTableView(this)),
       hold_timing_table_view_(new QTableView(this)),
       path_details_table_view_(new QTableView(this)),
@@ -71,8 +70,7 @@ TimingWidget::TimingWidget(QWidget* parent)
       delay_detail_splitter_(new QSplitter(Qt::Vertical, this)),
       delay_widget_(new QTabWidget(this)),
       detail_widget_(new QTabWidget(this)),
-      focus_view_(nullptr),
-      focus_detail_view_(nullptr)
+      focus_view_(nullptr)
 {
   setObjectName("timing_report");  // for settings
 
@@ -109,7 +107,6 @@ TimingWidget::TimingWidget(QWidget* parent)
   setWidget(container);
 
   addCommandsMenuActions();
-  addDetailPathPinMenuActions();
 
   connect(dbchange_listener_,
           &GuiDBChangeListener::dbUpdated,
@@ -260,7 +257,7 @@ void TimingWidget::init(sta::dbSta* sta)
   connect(path_details_table_view_,
           &QTableView::customContextMenuRequested,
           this,
-          &TimingWidget::showDetailPathPinMenu);
+          &TimingWidget::inspectPin);
 
   connect(capture_details_table_view_->selectionModel(),
           &QItemSelectionModel::selectionChanged,
@@ -270,7 +267,7 @@ void TimingWidget::init(sta::dbSta* sta)
   connect(capture_details_table_view_,
           &QTableView::customContextMenuRequested,
           this,
-          &TimingWidget::showDetailPathPinMenu);
+          &TimingWidget::inspectPin);
 
   clearPathDetails();
 }
@@ -359,23 +356,31 @@ void TimingWidget::addCommandsMenuActions()
           });
 }
 
-void TimingWidget::addDetailPathPinMenuActions()
+void TimingWidget::inspectPin(const QPoint& pos)
 {
-  QMenu* go_to_menu = detail_path_pin_menu_->addMenu("Go to");
+  const int invalid_index = -1;
+  if (detail_widget_->currentIndex() == invalid_index) {
+    return;
+  }
 
-  connect(go_to_menu->addAction("Terminal Inspection"),
-          &QAction::triggered,
-          [this] { selectAndEmitDetailPathTerm(); });
+  QTableView* focus_detail_view = nullptr;
+  const int data_path_tab_index = 0;
+  if (detail_widget_->currentIndex() == data_path_tab_index) {
+    focus_detail_view = path_details_table_view_;
+  } else {
+    focus_detail_view = capture_details_table_view_;
+  }
 
-  go_to_menu->addAction("Verilog Line");
-}
+  const int pin_column = 0;
+  if (focus_detail_view->columnAt(pos.x()) != pin_column) {
+    return;
+  }
 
-void TimingWidget::selectAndEmitDetailPathTerm()
-{
+  QModelIndex detail_path_table_index = focus_detail_view->indexAt(pos);
   TimingPathDetailModel* focus_detail_model
-      = static_cast<TimingPathDetailModel*>(focus_detail_view_->model());
+      = static_cast<TimingPathDetailModel*>(focus_detail_view->model());
   const TimingPathNode* selected_node
-      = focus_detail_model->getNodeAt(detail_path_table_index_);
+      = focus_detail_model->getNodeAt(detail_path_table_index);
 
   Gui* gui = Gui::get();
   odb::dbITerm* iterm = selected_node->getPinAsITerm();
@@ -386,30 +391,6 @@ void TimingWidget::selectAndEmitDetailPathTerm()
 
   odb::dbBTerm* bterm = selected_node->getPinAsBTerm();
   emit inspect(gui->makeSelected(bterm));
-}
-
-void TimingWidget::showDetailPathPinMenu(const QPoint& pos)
-{
-  const int invalid_index = -1;
-  if (detail_widget_->currentIndex() == invalid_index) {
-    return;
-  }
-
-  const int data_path_tab_index = 0;
-  if (detail_widget_->currentIndex() == data_path_tab_index) {
-    focus_detail_view_ = path_details_table_view_;
-  } else {
-    focus_detail_view_ = capture_details_table_view_;
-  }
-
-  const int pin_column = 0;
-  if (focus_detail_view_->columnAt(pos.x()) != pin_column) {
-    return;
-  }
-
-  detail_path_table_index_ = focus_detail_view_->indexAt(pos);
-  detail_path_pin_menu_->popup(
-      focus_detail_view_->viewport()->mapToGlobal(pos));
 }
 
 void TimingWidget::showCommandsMenu(const QPoint& pos)
