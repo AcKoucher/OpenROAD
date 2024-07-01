@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "Mpl2Observer.h"
+/*#include "clusterEngine.h"*/
 
 namespace odb {
 class dbBTerm;
@@ -265,6 +266,8 @@ class HierRTLMP
 
   // Hierarchical Macro Placement 1st stage: Cluster Placement
   void runHierarchicalMacroPlacement(Cluster* parent);
+  void adjustMacroBlockageWeight();
+  void reportSAWeights();
   void runHierarchicalMacroPlacementWithoutBusPlanning(Cluster* parent);
   void runEnhancedHierarchicalMacroPlacement(Cluster* parent);
 
@@ -318,6 +321,7 @@ class HierRTLMP
   // Bus Planning
   void callBusPlanning(std::vector<SoftMacro>& shaped_macros,
                        std::vector<BundledNet>& nets_old);
+  void adjustCongestionWeight();
 
   static bool isIgnoredMaster(odb::dbMaster* master);
 
@@ -330,6 +334,8 @@ class HierRTLMP
   sta::dbSta* sta_ = nullptr;
   utl::Logger* logger_ = nullptr;
   par::PartitionMgr* tritonpart_ = nullptr;
+
+  /*std::unique_ptr<ClusteringEngine> clustering_engine_;*/
 
   // flag variables
   const bool dynamic_congestion_weight_flag_ = false;
@@ -494,6 +500,8 @@ class HierRTLMP
   bool design_has_io_clusters_ = true;
   bool design_has_only_macros_ = false;
   bool design_has_unfixed_macros_ = true;
+
+  /*PhysicalHierarchy tree_;*/
 
   std::unique_ptr<Mpl2Observer> graphics_;
 };
