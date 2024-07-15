@@ -1524,6 +1524,27 @@ void HierRTLMP::createDataFlow()
     stop_flag_vec.push_back(true);
   }
 
+  int valid_lib_cell_count = 0;
+  for (odb::dbInst* inst : block_->getInsts()) {
+    odb::dbMaster* master = inst->getMaster();
+    if (isIgnoredMaster(master) || master->isBlock()) {
+      continue;
+    }
+
+    const sta::LibertyCell* liberty_cell = network_->libertyCell(inst);
+    if (liberty_cell) {
+      ++valid_lib_cell_count;
+    }
+  }
+
+  if (valid_lib_cell_count == 0) {
+    logger_->warn(MPL,
+                  14,
+                  "No Liberty data found for std cells when creating data "
+                  "flow. Continuing without dataflow.");
+    return;
+  }
+
   // assign vertex_id property of each instance
   for (auto inst : block_->getInsts()) {
     odb::dbMaster* master = inst->getMaster();
@@ -1596,7 +1617,15 @@ void HierRTLMP::createDataFlow()
       if (master->isBlock()) {
         vertex_id = odb::dbIntProperty::find(iterm, "vertex_id")->getValue();
       } else {
-        vertex_id = odb::dbIntProperty::find(inst, "vertex_id")->getValue();
+        odb::dbIntProperty* vertex_prop
+            = odb::dbIntProperty::find(inst, "vertex_id");
+        if (vertex_prop) {
+          vertex_id = vertex_prop->getValue();
+        } else {
+          // Ignore nets containing std cells with no Liberty data.
+          ignore = true;
+          break;
+        }
       }
       if (iterm->getIoType() == odb::dbIoType::OUTPUT) {
         driver_id = vertex_id;
@@ -1706,6 +1735,8 @@ void HierRTLMP::createDataFlow()
     macro_ffs_conn_map_.emplace_back(src_pin, std_cells);
     macro_macro_conn_map_.emplace_back(src_pin, macros);
   }
+
+  data_flow_is_empty_ = false;
 }
 
 //
@@ -1862,6 +1893,10 @@ void HierRTLMP::dataFlowDFSMacroPin(
 
 void HierRTLMP::updateDataFlow()
 {
+  if (data_flow_is_empty_) {
+    return;
+  }
+
   // bterm, macros or ffs
   for (const auto& [bterm, insts] : io_ffs_conn_map_) {
     if (bterm_to_cluster_.find(bterm) == bterm_to_cluster_.end()) {

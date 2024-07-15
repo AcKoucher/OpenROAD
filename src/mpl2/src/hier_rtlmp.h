@@ -495,6 +495,7 @@ class HierRTLMP
   bool design_has_io_clusters_ = true;
   bool design_has_only_macros_ = false;
   bool design_has_unfixed_macros_ = true;
+  bool data_flow_is_empty_ = true;
 
   std::unique_ptr<Mpl2Observer> graphics_;
 };
