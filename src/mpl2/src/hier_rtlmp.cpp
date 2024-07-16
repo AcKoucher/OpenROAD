@@ -6627,6 +6627,18 @@ odb::Point Snapper::computeSnapOrigin()
     }
   }
 
+  std::cout << fmt::format("\nX\n");
+  std::cout << fmt::format("Offset {}\n", x.offset);
+  std::cout << fmt::format("Pitch {}\n", x.pitch);
+  std::cout << fmt::format("Pin Width {}\n", x.pin_width);
+  std::cout << fmt::format("Lower Left to First Pin {}\n", x.lower_left_to_first_pin);
+
+  std::cout << fmt::format("\nY\n");
+  std::cout << fmt::format("Offset {}\n", y.offset);
+  std::cout << fmt::format("Pitch {}\n", y.pitch);
+  std::cout << fmt::format("Pin Width {}\n", y.pin_width);
+  std::cout << fmt::format("Lower Left to First Pin {}\n\n", y.lower_left_to_first_pin);
+
   // The distance between the pins and the lower-left corner of the master of
   // a macro instance may not be a multiple of the track-grid, in these cases,
   // we need to compensate a small offset.
