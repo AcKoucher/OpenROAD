@@ -206,7 +206,7 @@ class ClusteringEngine
   void createCluster(Cluster* parent);
   void updateSubTree(Cluster* parent);
   void breakLargeFlatCluster(Cluster* parent);
-  void mergeClusters(std::vector<Cluster*>& candidate_clusters);
+  void mergeSmallChildren(Cluster* parent);
   void fetchMixedLeaves(Cluster* parent,
                         std::vector<std::vector<Cluster*>>& mixed_leaves);
   void breakMixedLeaves(const std::vector<std::vector<Cluster*>>& mixed_leaves);

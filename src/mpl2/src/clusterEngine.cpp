@@ -1232,16 +1232,7 @@ void ClusteringEngine::breakCluster(Cluster* parent)
     }
   }
 
-  // Merge small clusters
-  std::vector<Cluster*> candidate_clusters;
-  for (Cluster* cluster : parent->getChildren()) {
-    if (!cluster->isIOCluster() && cluster->getNumStdCell() < min_std_cell_
-        && cluster->getNumMacro() < min_macro_) {
-      candidate_clusters.push_back(cluster);
-    }
-  }
-
-  mergeClusters(candidate_clusters);
+  mergeSmallChildren(parent);
 
   // Update the cluster_id
   // This is important to maintain the clustering results
@@ -1473,27 +1464,23 @@ void ClusteringEngine::breakLargeFlatCluster(Cluster* parent)
   breakLargeFlatCluster(cluster_part_1);
 }
 
-// Recursively merge small clusters with the same parent cluster:
-// Example process based on connection signature:
-// Iter1 :  A, B, C, D, E, F
-// Iter2 :  A + C,  B + D,  E, F
-// Iter3 :  A + C + F, B + D, E
-// End if there is no same connection signature.
-// During the merging process, we support two types of merging
-// Type 1: merging small clusters to their closely connected clusters
-//         For example, if a small cluster A is closely connected to a
-//         well-formed cluster B, (there are also other well-formed clusters
-//         C, D), A is only connected to B and A has no connection with C, D
-// Type 2: merging small clusters with the same connection signature
-//         For example, if we merge small clusters A and B,  A and B will have
-//         exactly the same connections relative to all other clusters (both
-//         small clusters and well-formed clusters). In this case, if A and B
-//         have the same connection signature, A and C have the same connection
-//         signature, then B and C also have the same connection signature.
-// Note in both types, we only merge clusters with the same parent cluster.
-void ClusteringEngine::mergeClusters(std::vector<Cluster*>& candidate_clusters)
+// Recursively merge children whose number of std cells and macro
+// is below the current level thresholds. There are three cases:
+// 1) Children are closely connected.
+// 2) Children have the same connection signature.
+// 3) Children that were not merged in the previous cases - dust -
+//    and are made of very few std cells (< 10)
+void ClusteringEngine::mergeSmallChildren(Cluster* parent)
 {
-  if (candidate_clusters.empty()) {
+  std::vector<Cluster*> mergeable_children;
+  for (Cluster* child : parent->getChildren()) {
+    if (!child->isIOCluster() && child->getNumStdCell() < min_std_cell_
+        && child->getNumMacro() < min_macro_) {
+      mergeable_children.push_back(child);
+    }
+  }
+
+  if (mergeable_children.empty()) {
     return;
   }
 
@@ -1504,130 +1491,122 @@ void ClusteringEngine::mergeClusters(std::vector<Cluster*>& candidate_clusters)
              1,
              "Merge Cluster Iter: {}",
              merge_iter++);
-  for (auto& cluster : candidate_clusters) {
+  for (auto& child : mergeable_children) {
     debugPrint(logger_,
                MPL,
                "multilevel_autoclustering",
                1,
                "Cluster: {}, num std cell: {}, num macros: {}",
-               cluster->getName(),
-               cluster->getNumStdCell(),
-               cluster->getNumMacro());
+               child->getName(),
+               child->getNumStdCell(),
+               child->getNumMacro());
   }
 
-  int num_candidate_clusters = candidate_clusters.size();
+  const int invalid_id = -1;
+  int num_mergeable_children = static_cast<int>(mergeable_children.size());
   while (true) {
-    updateConnections();  // update the connections between clusters
+    updateConnections();
 
-    std::vector<int> cluster_class(num_candidate_clusters, -1);  // merge flag
-    std::vector<int> candidate_clusters_id;  // store cluster id
-    candidate_clusters_id.reserve(candidate_clusters.size());
-    for (auto& cluster : candidate_clusters) {
-      candidate_clusters_id.push_back(cluster->getId());
+    std::vector<int> merge_class(num_mergeable_children, invalid_id);
+    std::vector<int> mergeable_children_ids;
+    mergeable_children_ids.reserve(num_mergeable_children);
+    for (Cluster* child : mergeable_children) {
+      mergeable_children_ids.push_back(child->getId());
     }
-    // Firstly we perform Type 1 merge
-    for (int i = 0; i < num_candidate_clusters; i++) {
-      const int cluster_id = candidate_clusters[i]->getCloseCluster(
-          candidate_clusters_id, tree_->min_net_count_for_connection);
-      debugPrint(
-          logger_,
-          MPL,
-          "multilevel_autoclustering",
-          1,
-          "Candidate cluster: {} - {}",
-          candidate_clusters[i]->getName(),
-          (cluster_id != -1 ? tree_->maps.id_to_cluster[cluster_id]->getName()
-                            : "   "));
-      if (cluster_id != -1
-          && !tree_->maps.id_to_cluster[cluster_id]->isIOCluster()) {
-        Cluster*& cluster = tree_->maps.id_to_cluster[cluster_id];
+
+    // Merge based on closeness:
+    for (int i = 0; i < num_mergeable_children; i++) {
+      const int close_cluster_id = mergeable_children[i]->getCloseCluster(
+          mergeable_children_ids, tree_->min_net_count_for_connection);
+      Cluster* close_cluster = tree_->maps.id_to_cluster[close_cluster_id];
+      if (close_cluster_id != invalid_id && !close_cluster->isIOCluster()) {
         bool delete_flag = false;
-        if (cluster->mergeCluster(*candidate_clusters[i], delete_flag)) {
+        if (close_cluster->mergeCluster(*mergeable_children[i], delete_flag)) {
           if (delete_flag) {
-            tree_->maps.id_to_cluster.erase(candidate_clusters[i]->getId());
-            delete candidate_clusters[i];
+            tree_->maps.id_to_cluster.erase(mergeable_children[i]->getId());
+            delete mergeable_children[i];
           }
-          updateInstancesAssociation(cluster);
-          setClusterMetrics(cluster);
-          cluster_class[i] = cluster->getId();
+          updateInstancesAssociation(close_cluster);
+          setClusterMetrics(close_cluster);
+          merge_class[i] = close_cluster->getId();
         }
       }
     }
 
-    // Then we perform Type 2 merge
-    std::vector<Cluster*> new_candidate_clusters;
-    for (int i = 0; i < num_candidate_clusters; i++) {
-      if (cluster_class[i] == -1) {  // the cluster has not been merged
-        // new_candidate_clusters.push_back(candidate_clusters[i]);
-        for (int j = i + 1; j < num_candidate_clusters; j++) {
-          if (cluster_class[j] != -1) {
+    // Merge based on connection signature
+    for (int i = 0; i < num_mergeable_children; i++) {
+      if (merge_class[i] == invalid_id) {  // the cluster has not been merged
+        for (int j = i + 1; j < num_mergeable_children; j++) {
+          if (merge_class[j] != invalid_id) {
             continue;
           }
-          bool flag = candidate_clusters[i]->isSameConnSignature(
-              *candidate_clusters[j], tree_->min_net_count_for_connection);
-          if (flag) {
-            cluster_class[j] = i;
+
+          bool siblings_have_same_signature
+              = mergeable_children[i]->isSameConnSignature(
+                  *mergeable_children[j], tree_->min_net_count_for_connection);
+          if (siblings_have_same_signature) {
+            merge_class[j] = i;
             bool delete_flag = false;
-            if (candidate_clusters[i]->mergeCluster(*candidate_clusters[j],
+            if (mergeable_children[i]->mergeCluster(*mergeable_children[j],
                                                     delete_flag)) {
               if (delete_flag) {
-                tree_->maps.id_to_cluster.erase(candidate_clusters[j]->getId());
-                delete candidate_clusters[j];
+                tree_->maps.id_to_cluster.erase(mergeable_children[j]->getId());
+                delete mergeable_children[j];
               }
-              updateInstancesAssociation(candidate_clusters[i]);
-              setClusterMetrics(candidate_clusters[i]);
+              updateInstancesAssociation(mergeable_children[i]);
+              setClusterMetrics(mergeable_children[i]);
             }
           }
         }
       }
     }
 
-    // Then we perform Type 3 merge:  merge all dust cluster
-    const int dust_cluster_std_cell = 10;
-    for (int i = 0; i < num_candidate_clusters; i++) {
-      if (cluster_class[i] == -1) {  // the cluster has not been merged
-        new_candidate_clusters.push_back(candidate_clusters[i]);
-        if (candidate_clusters[i]->getNumStdCell() <= dust_cluster_std_cell
-            && candidate_clusters[i]->getNumMacro() == 0) {
-          for (int j = i + 1; j < num_candidate_clusters; j++) {
-            if (cluster_class[j] != -1
-                || candidate_clusters[j]->getNumMacro() > 0
-                || candidate_clusters[j]->getNumStdCell()
-                       > dust_cluster_std_cell) {
+    // Merge dust children
+    const int min_std_cell = 10;
+    std::vector<Cluster*> new_mergeable_children;
+    for (int i = 0; i < num_mergeable_children; i++) {
+      if (merge_class[i] == invalid_id) {  // the cluster has not been merged
+        new_mergeable_children.push_back(mergeable_children[i]);
+        if (mergeable_children[i]->getNumStdCell() <= min_std_cell
+            && mergeable_children[i]->getNumMacro() == 0) {
+          for (int j = i + 1; j < num_mergeable_children; j++) {
+            if (merge_class[j] != invalid_id
+                || mergeable_children[j]->getNumMacro() > 0
+                || mergeable_children[j]->getNumStdCell() > min_std_cell) {
               continue;
             }
-            cluster_class[j] = i;
+
+            merge_class[j] = i;
             bool delete_flag = false;
-            if (candidate_clusters[i]->mergeCluster(*candidate_clusters[j],
+            if (mergeable_children[i]->mergeCluster(*mergeable_children[j],
                                                     delete_flag)) {
               if (delete_flag) {
-                tree_->maps.id_to_cluster.erase(candidate_clusters[j]->getId());
-                delete candidate_clusters[j];
+                tree_->maps.id_to_cluster.erase(mergeable_children[j]->getId());
+                delete mergeable_children[j];
               }
-              updateInstancesAssociation(candidate_clusters[i]);
-              setClusterMetrics(candidate_clusters[i]);
+              updateInstancesAssociation(mergeable_children[i]);
+              setClusterMetrics(mergeable_children[i]);
             }
           }
         }
       }
     }
 
-    // Update the candidate clusters
     // Some clusters have become well-formed clusters
-    candidate_clusters.clear();
-    for (Cluster* cluster : new_candidate_clusters) {
+    mergeable_children.clear();
+    for (Cluster* cluster : new_mergeable_children) {
       if (cluster->getNumStdCell() < min_std_cell_
           && cluster->getNumMacro() < min_macro_) {
-        candidate_clusters.push_back(cluster);
+        mergeable_children.push_back(cluster);
       }
     }
 
     // If no more clusters have been merged, exit the merging loop
-    if (num_candidate_clusters == new_candidate_clusters.size()) {
+    if (num_mergeable_children == new_mergeable_children.size()) {
       break;
     }
 
-    num_candidate_clusters = candidate_clusters.size();
+    num_mergeable_children = static_cast<int>(mergeable_children.size());
 
     debugPrint(logger_,
                MPL,
@@ -1635,16 +1614,16 @@ void ClusteringEngine::mergeClusters(std::vector<Cluster*>& candidate_clusters)
                1,
                "Merge Cluster Iter: {}",
                merge_iter++);
-    for (auto& cluster : candidate_clusters) {
+    for (auto& child : mergeable_children) {
       debugPrint(logger_,
                  MPL,
                  "multilevel_autoclustering",
                  1,
                  "Cluster: {}",
-                 cluster->getName());
+                 child->getName());
     }
-    // merge small clusters
-    if (candidate_clusters.empty()) {
+
+    if (mergeable_children.empty()) {
       break;
     }
   }
@@ -1652,7 +1631,7 @@ void ClusteringEngine::mergeClusters(std::vector<Cluster*>& candidate_clusters)
              MPL,
              "multilevel_autoclustering",
              1,
-             "Finished merging clusters");
+             "Finished merging small children");
 }
 
 void ClusteringEngine::updateConnections()

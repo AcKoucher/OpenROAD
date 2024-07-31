@@ -623,12 +623,7 @@ bool Cluster::hasMacroConnectionWith(const Cluster& cluster,
   return false;
 }
 
-// Get closely-connected cluster if such cluster exists
-// For example, if a small cluster A is closely connected to a
-// well-formed cluster B, (there are also other well-formed clusters
-// C, D), A is only connected to B and A has no connection with C, D
-// Candidate clusters always need to be merged.
-// A non candidate cluster is a well-formed cluster.
+// Search for a closely-connected cluster and return its ID.
 int Cluster::getCloseCluster(const std::vector<int>& candidate_clusters,
                              float net_threshold)
 {
