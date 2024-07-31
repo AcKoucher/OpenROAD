@@ -514,34 +514,32 @@ bool Cluster::isLeaf() const
   return children_.empty();
 }
 
-// We only merge clusters with the same parent cluster
-// We only merge clusters with the same parent cluster
-bool Cluster::mergeCluster(Cluster& cluster, bool& delete_flag)
+bool Cluster::attemptToAbsorb(Cluster* incomer, bool& delete_merged)
 {
-  if (parent_ != cluster.parent_) {
+  if (parent_ != incomer->parent_) {
     return false;
   }
 
-  parent_->removeChild(&cluster);
-  metrics_.addMetrics(cluster.metrics_);
+  parent_->removeChild(incomer);
+  metrics_.addMetrics(incomer->metrics_);
   // modify name
-  name_ += "||" + cluster.name_;
+  name_ += "||" + incomer->name_;
   // if current cluster is a leaf cluster
   leaf_macros_.insert(leaf_macros_.end(),
-                      cluster.leaf_macros_.begin(),
-                      cluster.leaf_macros_.end());
+                      incomer->leaf_macros_.begin(),
+                      incomer->leaf_macros_.end());
   leaf_std_cells_.insert(leaf_std_cells_.end(),
-                         cluster.leaf_std_cells_.begin(),
-                         cluster.leaf_std_cells_.end());
+                         incomer->leaf_std_cells_.begin(),
+                         incomer->leaf_std_cells_.end());
   db_modules_.insert(db_modules_.end(),
-                     cluster.db_modules_.begin(),
-                     cluster.db_modules_.end());
-  delete_flag = true;
+                     incomer->db_modules_.begin(),
+                     incomer->db_modules_.end());
+  delete_merged = true;
   // if current cluster is not a leaf cluster
   if (!children_.empty()) {
-    children_.push_back(&cluster);
-    cluster.setParent(this);
-    delete_flag = false;
+    children_.push_back(incomer);
+    incomer->setParent(this);
+    delete_merged = false;
   }
   return true;
 }

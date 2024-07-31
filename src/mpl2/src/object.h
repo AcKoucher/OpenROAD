@@ -233,10 +233,10 @@ class Cluster
   Cluster* getParent() const;
   std::vector<Cluster*> getChildren() const;
 
-  bool isLeaf() const;  // if the cluster is a leaf cluster
+  bool isLeaf() const;
   std::string getIsLeafString() const;
-  bool mergeCluster(Cluster& cluster,
-                    bool& delete_flag);  // return true if succeed
+  bool attemptToAbsorb(Cluster* incomer,
+                       bool& delete_merged);  // return true if succeed
 
   // Connection signature support
   void initConnection();

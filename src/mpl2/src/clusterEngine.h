@@ -207,6 +207,7 @@ class ClusteringEngine
   void updateSubTree(Cluster* parent);
   void breakLargeFlatCluster(Cluster* parent);
   void mergeSmallChildren(Cluster* parent);
+  bool attemptMerge(Cluster* receiver, Cluster* incomer);
   void fetchMixedLeaves(Cluster* parent,
                         std::vector<std::vector<Cluster*>>& mixed_leaves);
   void breakMixedLeaves(const std::vector<std::vector<Cluster*>>& mixed_leaves);
@@ -229,7 +230,6 @@ class ClusteringEngine
                                 const std::vector<int>& signature_class,
                                 std::vector<int>& interconn_class,
                                 std::vector<int>& macro_class);
-  void mergeMacroClustersWithinSameClass(Cluster* target, Cluster* source);
   void addStdCellClusterToSubTree(Cluster* parent,
                                   Cluster* mixed_leaf,
                                   std::vector<int>& virtual_conn_clusters);

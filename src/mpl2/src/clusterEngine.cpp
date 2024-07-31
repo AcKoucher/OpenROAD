@@ -1520,14 +1520,9 @@ void ClusteringEngine::mergeSmallChildren(Cluster* parent)
           mergeable_children_ids, tree_->min_net_count_for_connection);
       Cluster* close_cluster = tree_->maps.id_to_cluster[close_cluster_id];
       if (close_cluster_id != invalid_id && !close_cluster->isIOCluster()) {
-        bool delete_flag = false;
-        if (close_cluster->mergeCluster(*mergeable_children[i], delete_flag)) {
-          if (delete_flag) {
-            tree_->maps.id_to_cluster.erase(mergeable_children[i]->getId());
-            delete mergeable_children[i];
-          }
-          updateInstancesAssociation(close_cluster);
-          setClusterMetrics(close_cluster);
+        bool merge_succeeded
+            = attemptMerge(close_cluster, mergeable_children[i]);
+        if (merge_succeeded) {
           merge_class[i] = close_cluster->getId();
         }
       }
@@ -1545,16 +1540,10 @@ void ClusteringEngine::mergeSmallChildren(Cluster* parent)
               = mergeable_children[i]->isSameConnSignature(
                   *mergeable_children[j], tree_->min_net_count_for_connection);
           if (siblings_have_same_signature) {
-            merge_class[j] = i;
-            bool delete_flag = false;
-            if (mergeable_children[i]->mergeCluster(*mergeable_children[j],
-                                                    delete_flag)) {
-              if (delete_flag) {
-                tree_->maps.id_to_cluster.erase(mergeable_children[j]->getId());
-                delete mergeable_children[j];
-              }
-              updateInstancesAssociation(mergeable_children[i]);
-              setClusterMetrics(mergeable_children[i]);
+            bool merge_succeeded
+                = attemptMerge(mergeable_children[i], mergeable_children[j]);
+            if (merge_succeeded) {
+              merge_class[j] = i;
             }
           }
         }
@@ -1576,16 +1565,10 @@ void ClusteringEngine::mergeSmallChildren(Cluster* parent)
               continue;
             }
 
-            merge_class[j] = i;
-            bool delete_flag = false;
-            if (mergeable_children[i]->mergeCluster(*mergeable_children[j],
-                                                    delete_flag)) {
-              if (delete_flag) {
-                tree_->maps.id_to_cluster.erase(mergeable_children[j]->getId());
-                delete mergeable_children[j];
-              }
-              updateInstancesAssociation(mergeable_children[i]);
-              setClusterMetrics(mergeable_children[i]);
+            bool merge_succeeded
+                = attemptMerge(mergeable_children[i], mergeable_children[j]);
+            if (merge_succeeded) {
+              merge_class[j] = i;
             }
           }
         }
@@ -1632,6 +1615,25 @@ void ClusteringEngine::mergeSmallChildren(Cluster* parent)
              "multilevel_autoclustering",
              1,
              "Finished merging small children");
+}
+
+bool ClusteringEngine::attemptMerge(Cluster* receiver, Cluster* incomer)
+{
+  bool delete_merged = false;
+  if (!receiver->attemptToAbsorb(incomer, delete_merged)) {
+    return false;
+  }
+
+  if (delete_merged) {
+    tree_->maps.id_to_cluster.erase(incomer->getId());
+    delete incomer;
+    incomer = nullptr;
+  }
+
+  updateInstancesAssociation(receiver);
+  setClusterMetrics(receiver);
+
+  return true;
 }
 
 void ClusteringEngine::updateConnections()
@@ -1980,53 +1982,39 @@ void ClusteringEngine::groupSingleMacroClusters(
 
       if (size_class[i] == size_class[j]) {
         if (interconn_class[i] == interconn_class[j]) {
-          macro_class[j] = i;
-
-          debugPrint(logger_,
-                     MPL,
-                     "multilevel_autoclustering",
-                     1,
-                     "Merging interconnected macro clusters {} and {}",
-                     macro_clusters[j]->getName(),
-                     macro_clusters[i]->getName());
-
-          mergeMacroClustersWithinSameClass(macro_clusters[i],
-                                            macro_clusters[j]);
-        } else {
-          // We need this so we can distinguish arrays of interconnected macros
-          // from grouped macro clusters with same signature.
-          interconn_class[i] = -1;
-
-          if (signature_class[i] == signature_class[j]) {
+          bool merge_succeeded
+              = attemptMerge(macro_clusters[i], macro_clusters[j]);
+          if (merge_succeeded) {
             macro_class[j] = i;
-
             debugPrint(logger_,
                        MPL,
                        "multilevel_autoclustering",
                        1,
-                       "Merging same signature clusters {} and {}.",
+                       "Merged interconnected macro clusters {} and {}",
                        macro_clusters[j]->getName(),
                        macro_clusters[i]->getName());
-
-            mergeMacroClustersWithinSameClass(macro_clusters[i],
-                                              macro_clusters[j]);
+          }
+        } else {
+          // We need this so we can distinguish arrays of interconnected macros
+          // from grouped macro clusters with same signature.
+          interconn_class[i] = -1;
+          if (signature_class[i] == signature_class[j]) {
+            bool merge_succeeded
+                = attemptMerge(macro_clusters[i], macro_clusters[j]);
+            if (merge_succeeded) {
+              macro_class[j] = i;
+              debugPrint(logger_,
+                         MPL,
+                         "multilevel_autoclustering",
+                         1,
+                         "Merged same signature clusters {} and {}.",
+                         macro_clusters[j]->getName(),
+                         macro_clusters[i]->getName());
+            }
           }
         }
       }
     }
-  }
-}
-
-void ClusteringEngine::mergeMacroClustersWithinSameClass(Cluster* target,
-                                                         Cluster* source)
-{
-  bool delete_merged = false;
-  target->mergeCluster(*source, delete_merged);
-
-  if (delete_merged) {
-    tree_->maps.id_to_cluster.erase(source->getId());
-    delete source;
-    source = nullptr;
   }
 }
 
