@@ -39,6 +39,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "odb/db.h"
+
 namespace par {
 class PartitionMgr;
 }
@@ -50,15 +52,6 @@ class Logger;
 namespace sta {
 class dbNetwork;
 }
-
-namespace odb {
-class dbBlock;
-class dbInst;
-class dbBTerm;
-class dbMaster;
-class dbITerm;
-class dbModule;
-}  // namespace odb
 
 namespace mpl2 {
 class Metrics;
