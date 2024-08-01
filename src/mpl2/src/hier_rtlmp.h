@@ -203,12 +203,13 @@ class HierRTLMP
                               const Rect& outline,
                               std::map<int, Rect>& fences,
                               std::map<int, Rect>& guides);
-  void createFixedTerminals(const Rect& outline,
-                            const std::vector<Cluster*>& macro_clusters,
-                            std::map<int, int>& cluster_to_macro,
-                            std::vector<HardMacro>& sa_macros);
+  void createFixedTerminals(
+      const Rect& outline,
+      const std::vector<std::unique_ptr<Cluster>>& macro_clusters,
+      std::map<int, int>& cluster_to_macro,
+      std::vector<HardMacro>& sa_macros);
   std::vector<BundledNet> computeBundledNets(
-      const std::vector<Cluster*>& macro_clusters,
+      const std::vector<std::unique_ptr<Cluster>>& macro_clusters,
       const std::map<int, int>& cluster_to_macro);
   void setArrayTilingSequencePair(Cluster* cluster,
                                   int macros_to_place,

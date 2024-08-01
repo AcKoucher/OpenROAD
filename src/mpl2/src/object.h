@@ -226,12 +226,12 @@ class Cluster
 
   // Hierarchy Support
   void setParent(Cluster* parent);
-  void addChild(Cluster* child);
-  void removeChild(const Cluster* child);
-  void addChildren(const std::vector<Cluster*>& children);
-  void removeChildren();
+  void addChild(std::unique_ptr<Cluster> child);
+  std::unique_ptr<Cluster> releaseChild(Cluster* child);
+  std::vector<std::unique_ptr<Cluster>> releaseChildren();
+  void addChildren(std::vector<std::unique_ptr<Cluster>> children);
   Cluster* getParent() const;
-  std::vector<Cluster*> getChildren() const;
+  const std::vector<std::unique_ptr<Cluster>>& getChildren() const;
 
   bool isLeaf() const;
   std::string getIsLeafString() const;
@@ -308,8 +308,8 @@ class Cluster
 
   // Each cluster is a node in the physical hierarchy tree
   // Thus we need to define related to parent and children pointers
-  Cluster* parent_ = nullptr;       // parent of current cluster
-  std::vector<Cluster*> children_;  // children of current cluster
+  Cluster* parent_ = nullptr;  // parent of current cluster
+  std::vector<std::unique_ptr<Cluster>> children_;
 
   // macro tilings for hard macros
   std::vector<std::pair<float, float>> macro_tilings_;  // <width, height>

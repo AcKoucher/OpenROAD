@@ -479,24 +479,41 @@ void Cluster::setParent(Cluster* parent)
   parent_ = parent;
 }
 
-void Cluster::addChild(Cluster* child)
+void Cluster::addChild(std::unique_ptr<Cluster> child)
 {
-  children_.push_back(child);
+  children_.push_back(std::move(child));
 }
 
-void Cluster::removeChild(const Cluster* child)
+std::unique_ptr<Cluster> Cluster::releaseChild(Cluster* candidate)
 {
-  children_.erase(std::find(children_.begin(), children_.end(), child));
+  int child_index = 0;
+  for (auto& child : children_) {
+    if (child.get() == candidate) {
+      break;
+    }
+
+    ++child_index;
+  }
+
+  if (child_index != static_cast<int>(children_.size())) {
+    std::unique_ptr<Cluster> child = std::move(children_[child_index]);
+    children_.erase(children_.begin() + child_index);
+    return child;
+  }
+
+  return nullptr;
 }
 
-void Cluster::addChildren(const std::vector<Cluster*>& children)
+void Cluster::addChildren(std::vector<std::unique_ptr<Cluster>> children)
 {
-  std::copy(children.begin(), children.end(), std::back_inserter(children_));
+  std::move(children.begin(), children.end(), std::back_inserter(children_));
 }
 
-void Cluster::removeChildren()
+std::vector<std::unique_ptr<Cluster>> Cluster::releaseChildren()
 {
+  std::vector<std::unique_ptr<Cluster>> children = std::move(children_);
   children_.clear();
+  return children;
 }
 
 Cluster* Cluster::getParent() const
@@ -504,7 +521,7 @@ Cluster* Cluster::getParent() const
   return parent_;
 }
 
-std::vector<Cluster*> Cluster::getChildren() const
+const std::vector<std::unique_ptr<Cluster>>& Cluster::getChildren() const
 {
   return children_;
 }
@@ -514,17 +531,18 @@ bool Cluster::isLeaf() const
   return children_.empty();
 }
 
-bool Cluster::attemptToAbsorb(Cluster* incomer, bool& delete_merged)
+bool Cluster::attemptToAbsorb(Cluster* raw_incomer, bool& delete_merged)
 {
-  if (parent_ != incomer->parent_) {
+  if (parent_ != raw_incomer->parent_) {
     return false;
   }
 
-  parent_->removeChild(incomer);
+  // If the ownership is not passed to the receiver. The incomer
+  // is destroyed.
+  std::unique_ptr<Cluster> incomer = parent_->releaseChild(raw_incomer);
+
   metrics_.addMetrics(incomer->metrics_);
-  // modify name
   name_ += "||" + incomer->name_;
-  // if current cluster is a leaf cluster
   leaf_macros_.insert(leaf_macros_.end(),
                       incomer->leaf_macros_.begin(),
                       incomer->leaf_macros_.end());
@@ -535,9 +553,11 @@ bool Cluster::attemptToAbsorb(Cluster* incomer, bool& delete_merged)
                      incomer->db_modules_.begin(),
                      incomer->db_modules_.end());
   delete_merged = true;
-  // if current cluster is not a leaf cluster
+
+  // If the receiver is not a leaf, the incomer becomes another
+  // one of its children.
   if (!children_.empty()) {
-    children_.push_back(incomer);
+    children_.push_back(std::move(incomer));
     incomer->setParent(this);
     delete_merged = false;
   }

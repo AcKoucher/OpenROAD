@@ -117,7 +117,7 @@ struct PhysicalHierarchyMaps
 
 struct PhysicalHierarchy
 {
-  Cluster* root{nullptr};
+  std::unique_ptr<Cluster> root;
   PhysicalHierarchyMaps maps;
 
   float halo_width{0.0f};
@@ -169,12 +169,13 @@ class ClusteringEngine
                                   int cluster_id,
                                   bool include_macro);
 
-  // Needed for macro placement
-  void createClusterForEachMacro(const std::vector<HardMacro*>& hard_macros,
-                                 std::vector<HardMacro>& sa_macros,
-                                 std::vector<Cluster*>& macro_clusters,
-                                 std::map<int, int>& cluster_to_macro,
-                                 std::set<odb::dbMaster*>& masters);
+  // Needed for calculating connections during macro placement
+  void createTemporaryMacroClusters(
+      const std::vector<HardMacro*>& hard_macros,
+      std::vector<HardMacro>& sa_macros,
+      std::vector<std::unique_ptr<Cluster>>& macro_clusters,
+      std::map<int, int>& cluster_to_macro,
+      std::set<odb::dbMaster*>& masters);
 
  private:
   void init();
@@ -188,7 +189,7 @@ class ClusteringEngine
   void createIOClusters();
   void mapIOPads();
   void treatEachMacroAsSingleCluster();
-  void incorporateNewCluster(Cluster* cluster, Cluster* parent);
+  void incorporateNewCluster(std::unique_ptr<Cluster> cluster, Cluster* parent);
   void setClusterMetrics(Cluster* cluster);
   void multilevelAutocluster(Cluster* parent);
   void updateSizeThresholds();
