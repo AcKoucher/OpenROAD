@@ -104,7 +104,7 @@ using sta::Term;
 using sta::TimingArcSet;
 using sta::TimingArcSetSeq;
 using sta::TimingRole;
-;
+using sta::equivCells;
 using sta::ArcDcalcResult;
 using sta::ArcDelayCalc;
 using sta::BfsBkwdIterator;
@@ -982,6 +982,25 @@ void Resizer::resizePreamble()
   checkLibertyForAllCorners();
   findBuffers();
   findTargetLoads();
+  setSequentialResizingIsEnabled();
+}
+
+void Resizer::setSequentialResizingIsEnabled()
+{
+  std::vector<LibertyCell*> registers;
+  LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
+  while (lib_iter->hasNext()) {
+    LibertyLibrary* lib = lib_iter->next();
+    LibertyCellIterator lib_cell_iter(lib);
+    while (lib_cell_iter.hasNext()) {
+      LibertyCell* lib_cell = lib_cell_iter.next();
+      if (lib_cell->hasSequentials()) {
+        registers.push_back(lib_cell);
+        logger_->report("{}", lib_cell->name());
+      }
+    }
+  }
+  delete lib_iter;
 }
 
 void Resizer::checkLibertyForAllCorners()

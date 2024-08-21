@@ -415,6 +415,7 @@ class Resizer : public dbStaState
   bool isTristateDriver(const Pin* pin);
   void checkLibertyForAllCorners();
   void findBuffers();
+  void setSequentialResizingIsEnabled();
   bool isLinkCell(LibertyCell* cell);
   void findTargetLoads();
   void balanceBin(const vector<odb::dbInst*>& bin);
@@ -697,6 +698,8 @@ class Resizer : public dbStaState
   const MinMax* max_ = MinMax::max();
   LibertyCellSeq buffer_cells_;
   LibertyCell* buffer_lowest_drive_ = nullptr;
+
+  bool sequential_resizing_is_enabled_ = false;
 
   CellTargetLoadMap* target_load_map_ = nullptr;
   VertexSeq level_drvr_vertices_;
