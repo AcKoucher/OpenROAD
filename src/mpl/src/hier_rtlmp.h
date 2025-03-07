@@ -152,6 +152,8 @@ class HierRTLMP
   void setMacroPlacementFile(const std::string& file_name);
   void writeMacroPlacement(const std::string& file_name);
 
+  static bool isHorizontal(Boundary boundary);
+
  private:
   using SoftSAVector = std::vector<std::unique_ptr<SACoreSoftMacro>>;
   using HardSAVector = std::vector<std::unique_ptr<SACoreHardMacro>>;
@@ -356,12 +358,14 @@ class Pusher
  private:
   void setIOBlockages(const std::map<Boundary, Rect>& boundary_to_io_blockage);
   bool designHasSingleCentralizedMacroArray();
-  void pushMacroClusterToCoreBoundaries(
-      Cluster* macro_cluster,
-      const std::map<Boundary, int>& boundaries_distance);
+  void pushMacroClusterToCoreBoundaries(Cluster* macro_cluster);
   void fetchMacroClusters(Cluster* parent,
                           std::vector<Cluster*>& macro_clusters);
-  std::map<Boundary, int> getDistanceToCloseBoundaries(Cluster* macro_cluster);
+  void findDistanceToClosestBoundaries(Cluster* macro_cluster);
+  int computeDistanceToBoundary(const odb::Rect& cluster_box, Boundary edge);
+  void findDistanceToClosestBoundary(const odb::Rect& cluster_box,
+                                     const HardMacro* hard_macro,
+                                     bool horizontal);
   void moveHardMacro(HardMacro* hard_macro, Boundary boundary, int distance);
   void moveMacroClusterBox(odb::Rect& cluster_box,
                            Boundary boundary,
@@ -376,7 +380,8 @@ class Pusher
   Cluster* root_;
   odb::dbBlock* block_;
   odb::Rect core_;
-
+  std::vector<Boundary> boundaries_;
+  std::map<Boundary, int> boundary_to_dist_;
   std::map<Boundary, odb::Rect> boundary_to_io_blockage_;
   std::vector<HardMacro*> hard_macros_;
 };

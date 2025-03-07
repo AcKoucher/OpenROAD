@@ -3057,6 +3057,12 @@ Rect HierRTLMP::dbuToMicrons(const odb::Rect& dbu_rect)
               block_->dbuToMicrons(dbu_rect.yMax()));
 }
 
+/* static */
+bool HierRTLMP::isHorizontal(Boundary boundary)
+{
+  return boundary == L || boundary == R;
+}
+
 template <typename SACore>
 void HierRTLMP::printPlacementResult(Cluster* parent,
                                      const Rect& outline,
@@ -3080,6 +3086,7 @@ Pusher::Pusher(utl::Logger* logger,
     : logger_(logger), root_(root), block_(block)
 {
   core_ = block_->getCoreArea();
+  boundaries_ = {L, R, T, B};
   setIOBlockages(boundary_to_io_blockage);
 }
 
@@ -3134,18 +3141,29 @@ void Pusher::pushMacrosToCoreBoundaries()
                "Macro Cluster {}",
                macro_cluster->getName());
 
-    std::map<Boundary, int> boundaries_distance
-        = getDistanceToCloseBoundaries(macro_cluster);
+    // The threshold distance to trigger a push comes from the dimensions
+    // of the HardMacros. As we only group macros of the same size, we can
+    // use any HardMacro from the cluster to set the threshold.
+    HardMacro* hard_macro = macro_cluster->getHardMacros().front();
+    const odb::Rect cluster_box(
+      block_->micronsToDbu(macro_cluster->getX()),
+      block_->micronsToDbu(macro_cluster->getY()),
+      block_->micronsToDbu(macro_cluster->getX() + macro_cluster->getWidth()),
+      block_->micronsToDbu(macro_cluster->getY() + macro_cluster->getHeight()));
+  
+    // One dimension at a time.
+    findDistanceToClosestBoundary(cluster_box, hard_macro, true /* horizontal */);
+    findDistanceToClosestBoundary(cluster_box, hard_macro, false /* horizontal */);
 
     if (logger_->debugCheck(MPL, "boundary_push", 1)) {
       logger_->report("Distance to Close Boundaries:");
 
-      for (auto& [boundary, distance] : boundaries_distance) {
+      for (auto& [boundary, distance] : boundary_to_dist_) {
         logger_->report("{} {}", toString(boundary), distance);
       }
     }
 
-    pushMacroClusterToCoreBoundaries(macro_cluster, boundaries_distance);
+    pushMacroClusterToCoreBoundaries(macro_cluster);
   }
 }
 
@@ -3179,72 +3197,79 @@ bool Pusher::designHasSingleCentralizedMacroArray()
   return true;
 }
 
-// We only group macros of the same size, so here we can use any HardMacro
-// from the cluster to set the minimum distance from the respective
-// boundary to trigger a push.
-std::map<Boundary, int> Pusher::getDistanceToCloseBoundaries(
-    Cluster* macro_cluster)
+int Pusher::computeDistanceToBoundary(const odb::Rect& cluster_box, Boundary edge)
 {
-  std::map<Boundary, int> boundaries_distance;
-
-  const odb::Rect cluster_box(
-      block_->micronsToDbu(macro_cluster->getX()),
-      block_->micronsToDbu(macro_cluster->getY()),
-      block_->micronsToDbu(macro_cluster->getX() + macro_cluster->getWidth()),
-      block_->micronsToDbu(macro_cluster->getY() + macro_cluster->getHeight()));
-
-  HardMacro* hard_macro = macro_cluster->getHardMacros().front();
-
-  Boundary hor_boundary_to_push;
-  const int distance_to_left = std::abs(cluster_box.xMin() - core_.xMin());
-  const int distance_to_right = std::abs(cluster_box.xMax() - core_.xMax());
-  int smaller_hor_distance = 0;
-
-  if (distance_to_left < distance_to_right) {
-    hor_boundary_to_push = L;
-    smaller_hor_distance = distance_to_left;
-  } else {
-    hor_boundary_to_push = R;
-    smaller_hor_distance = distance_to_right;
+  int dist_to_edge = 0;
+  switch (edge) {
+    case NONE: {
+      // Make compiler happy.
+      break;
+    }
+    case L: {
+      dist_to_edge = cluster_box.xMin() - core_.xMin();
+      break;
+    }
+    case R: {
+      dist_to_edge = cluster_box.xMax() - core_.xMax();
+      break;
+    }
+    case T: {
+      dist_to_edge = cluster_box.yMax() - core_.yMax();
+      break;
+    }
+    case B: {
+      dist_to_edge = cluster_box.yMin() - core_.yMin();
+      break;
+    }
   }
-
-  const int hard_macro_width = hard_macro->getWidthDBU();
-  if (smaller_hor_distance < hard_macro_width) {
-    boundaries_distance[hor_boundary_to_push] = smaller_hor_distance;
-  }
-
-  Boundary ver_boundary_to_push;
-  const int distance_to_top = std::abs(cluster_box.yMax() - core_.yMax());
-  const int distance_to_bottom = std::abs(cluster_box.yMin() - core_.yMin());
-  int smaller_ver_distance = 0;
-
-  if (distance_to_bottom < distance_to_top) {
-    ver_boundary_to_push = B;
-    smaller_ver_distance = distance_to_bottom;
-  } else {
-    ver_boundary_to_push = T;
-    smaller_ver_distance = distance_to_top;
-  }
-
-  const int hard_macro_height = hard_macro->getHeightDBU();
-  if (smaller_ver_distance < hard_macro_height) {
-    boundaries_distance[ver_boundary_to_push] = smaller_ver_distance;
-  }
-
-  return boundaries_distance;
+  return std::abs(dist_to_edge);
 }
 
-void Pusher::pushMacroClusterToCoreBoundaries(
-    Cluster* macro_cluster,
-    const std::map<Boundary, int>& boundaries_distance)
+void Pusher::findDistanceToClosestBoundary(const odb::Rect& cluster_box,
+  const HardMacro* hard_macro,
+  bool horizontal)
 {
-  if (boundaries_distance.empty()) {
+  // Other boundary of the same dimension.
+  Boundary other_boundary = NONE;
+  int other_boundary_dist = std::numeric_limits<int>::max();
+  const int min_dist_to_push
+      = horizontal ? hard_macro->getWidthDBU() : hard_macro->getHeightDBU();
+
+  for (const Boundary boundary : boundaries_) {
+    if (horizontal && !HierRTLMP::isHorizontal(boundary)) {
+      continue;
+    }
+
+    if (!horizontal && !HierRTLMP::isHorizontal(boundary)) {
+      continue;
+    }
+
+    int dist_to_boundary = computeDistanceToBoundary(cluster_box, boundary);
+
+    if (dist_to_boundary < min_dist_to_push) {
+      if (other_boundary == NONE) {
+        boundary_to_dist_[boundary] = dist_to_boundary;
+        other_boundary_dist = dist_to_boundary;
+        other_boundary = boundary;
+      } else if (dist_to_boundary < other_boundary_dist) {
+        // Keep only the shortest distance in the map.
+        // If the distances are the same, we keep the first one.
+        boundary_to_dist_.erase(other_boundary);
+        boundary_to_dist_[boundary] = dist_to_boundary;
+      }
+    }
+  }
+}
+
+void Pusher::pushMacroClusterToCoreBoundaries(Cluster* macro_cluster)
+{
+  if (boundary_to_dist_.empty()) {
     return;
   }
 
   std::vector<HardMacro*> hard_macros = macro_cluster->getHardMacros();
 
-  for (const auto& [boundary, distance] : boundaries_distance) {
+  for (const auto& [boundary, distance] : boundary_to_dist_) {
     if (distance == 0) {
       continue;
     }
