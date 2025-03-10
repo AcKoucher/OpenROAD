@@ -3146,14 +3146,17 @@ void Pusher::pushMacrosToCoreBoundaries()
     // use any HardMacro from the cluster to set the threshold.
     HardMacro* hard_macro = macro_cluster->getHardMacros().front();
     const odb::Rect cluster_box(
-      block_->micronsToDbu(macro_cluster->getX()),
-      block_->micronsToDbu(macro_cluster->getY()),
-      block_->micronsToDbu(macro_cluster->getX() + macro_cluster->getWidth()),
-      block_->micronsToDbu(macro_cluster->getY() + macro_cluster->getHeight()));
-  
+        block_->micronsToDbu(macro_cluster->getX()),
+        block_->micronsToDbu(macro_cluster->getY()),
+        block_->micronsToDbu(macro_cluster->getX() + macro_cluster->getWidth()),
+        block_->micronsToDbu(macro_cluster->getY()
+                             + macro_cluster->getHeight()));
+
     // One dimension at a time.
-    findDistanceToClosestBoundary(cluster_box, hard_macro, true /* horizontal */);
-    findDistanceToClosestBoundary(cluster_box, hard_macro, false /* horizontal */);
+    findDistanceToClosestBoundary(
+        cluster_box, hard_macro, true /* horizontal */);
+    findDistanceToClosestBoundary(
+        cluster_box, hard_macro, false /* horizontal */);
 
     if (logger_->debugCheck(MPL, "boundary_push", 1)) {
       logger_->report("Distance to Close Boundaries:");
@@ -3197,7 +3200,8 @@ bool Pusher::designHasSingleCentralizedMacroArray()
   return true;
 }
 
-int Pusher::computeDistanceToBoundary(const odb::Rect& cluster_box, Boundary edge)
+int Pusher::computeDistanceToBoundary(const odb::Rect& cluster_box,
+                                      Boundary edge)
 {
   int dist_to_edge = 0;
   switch (edge) {
@@ -3226,8 +3230,8 @@ int Pusher::computeDistanceToBoundary(const odb::Rect& cluster_box, Boundary edg
 }
 
 void Pusher::findDistanceToClosestBoundary(const odb::Rect& cluster_box,
-  const HardMacro* hard_macro,
-  bool horizontal)
+                                           const HardMacro* hard_macro,
+                                           bool horizontal)
 {
   // Other boundary of the same dimension.
   Boundary other_boundary = NONE;
@@ -3240,7 +3244,7 @@ void Pusher::findDistanceToClosestBoundary(const odb::Rect& cluster_box,
       continue;
     }
 
-    if (!horizontal && !HierRTLMP::isHorizontal(boundary)) {
+    if (!horizontal && HierRTLMP::isHorizontal(boundary)) {
       continue;
     }
 
