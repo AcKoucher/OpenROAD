@@ -3200,33 +3200,33 @@ bool Pusher::designHasSingleCentralizedMacroArray()
   return true;
 }
 
-int Pusher::computeDistanceToBoundary(const odb::Rect& cluster_box,
-                                      Boundary edge)
+int Pusher::computeDistanceToCoreBoundary(const odb::Rect& cluster_box,
+                                          Boundary edge)
 {
-  int dist_to_edge = 0;
+  int dist_to_boundary = 0;
   switch (edge) {
     case NONE: {
       // Make compiler happy.
       break;
     }
     case L: {
-      dist_to_edge = cluster_box.xMin() - core_.xMin();
+      dist_to_boundary = cluster_box.xMin() - core_.xMin();
       break;
     }
     case R: {
-      dist_to_edge = cluster_box.xMax() - core_.xMax();
+      dist_to_boundary = cluster_box.xMax() - core_.xMax();
       break;
     }
     case T: {
-      dist_to_edge = cluster_box.yMax() - core_.yMax();
+      dist_to_boundary = cluster_box.yMax() - core_.yMax();
       break;
     }
     case B: {
-      dist_to_edge = cluster_box.yMin() - core_.yMin();
+      dist_to_boundary = cluster_box.yMin() - core_.yMin();
       break;
     }
   }
-  return std::abs(dist_to_edge);
+  return std::abs(dist_to_boundary);
 }
 
 void Pusher::findDistanceToClosestBoundary(const odb::Rect& cluster_box,
@@ -3248,7 +3248,7 @@ void Pusher::findDistanceToClosestBoundary(const odb::Rect& cluster_box,
       continue;
     }
 
-    int dist_to_boundary = computeDistanceToBoundary(cluster_box, boundary);
+    int dist_to_boundary = computeDistanceToCoreBoundary(cluster_box, boundary);
 
     if (dist_to_boundary < min_dist_to_push) {
       if (other_boundary == NONE) {

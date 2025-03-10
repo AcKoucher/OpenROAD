@@ -362,7 +362,8 @@ class Pusher
   void fetchMacroClusters(Cluster* parent,
                           std::vector<Cluster*>& macro_clusters);
   void findDistanceToClosestBoundaries(Cluster* macro_cluster);
-  int computeDistanceToBoundary(const odb::Rect& cluster_box, Boundary edge);
+  int computeDistanceToCoreBoundary(const odb::Rect& cluster_box,
+                                    Boundary edge);
   void findDistanceToClosestBoundary(const odb::Rect& cluster_box,
                                      const HardMacro* hard_macro,
                                      bool horizontal);
