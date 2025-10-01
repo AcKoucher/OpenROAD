@@ -614,6 +614,14 @@ void report_hpwl()
   w.reportHpwl(getLogger());
 }
 
+float hpwl()
+{
+  dbDatabase *db = OpenRoad::openRoad()->getDb();
+  dbBlock *block = db->getChip()->getBlock();
+  odb::WireLengthEvaluator w(block);
+  return block->dbuToMicrons(w.hpwl());
+}
+
 }
 
 %} // inline
