@@ -1459,6 +1459,7 @@ void FlexDR::end(bool done)
     logger_->metric("route__vias", totSCut + totMCut);
     logger_->metric("route__vias__singlecut", totSCut);
     logger_->metric("route__vias__multicut", totMCut);
+    logger_->metric("route__number_of_iterations", iter_);
   } else {
     logger_->metric(fmt::format("route__drc_errors__iter:{}", iter_),
                     topBlock->getNumMarkers());

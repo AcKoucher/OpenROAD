@@ -1368,6 +1368,7 @@ void HierRTLMP::placeChildren(Cluster* parent)
       sa->setFences(fences);
       sa->setGuides(guides);
       sa->setNets(nets);
+      sa->setPauseStep(pause_step_);
 
       sa_batch.push_back(std::move(sa));
     }
@@ -1421,6 +1422,8 @@ void HierRTLMP::placeChildren(Cluster* parent)
                    parent->getName());
   }
 
+  logger_->metric("macro_place__annealer_final_cost", best_sa->getNormCost());
+  
   best_sa->fillDeadSpace();
 
   std::vector<SoftMacro> placed_macros = best_sa->getMacros();
