@@ -30,6 +30,7 @@ sta::define_cmd_args "rtl_macro_placer" { -max_num_macro  max_num_macro \
                                           -keep_clustering_data \
                                           -data_flow_driven \
                                           -timing_driven \
+                                          -pause_at_step pause_step \
                                         }
 proc rtl_macro_placer { args } {
   sta::parse_key_args "rtl_macro_placer" args \
@@ -43,6 +44,7 @@ proc rtl_macro_placer { args } {
          -min_ar \
          -report_directory \
          -write_macro_placement } \
+         -pause_at_step } \
     flags {-keep_clustering_data -data_flow_driven -timing_driven}
 
   sta::check_argc_eq0 "rtl_macro_placer" $args
@@ -81,6 +83,7 @@ proc rtl_macro_placer { args } {
   set target_util 0.25
   set min_ar 0.33
   set report_directory "hier_rtlmp"
+  set pause_step 2000
 
   if { [info exists keys(-max_num_macro)] } {
     set max_num_macro $keys(-max_num_macro)
@@ -165,6 +168,9 @@ proc rtl_macro_placer { args } {
   if { [info exists keys(-report_directory)] } {
     set report_directory $keys(-report_directory)
   }
+  if { [info exists keys(-pause_at_step)] } {
+    set pause_step $keys(-pause_at_step)
+  }
 
   file mkdir $report_directory
 
@@ -192,7 +198,8 @@ proc rtl_macro_placer { args } {
       $report_directory \
       [info exists flags(-keep_clustering_data)] \
       [info exists flags(-data_flow_driven)] \
-      [info exists flags(-timing_driven)]]
+      [info exists flags(-timing_driven)] \
+      $pause_step]
   } {
     return false
   }

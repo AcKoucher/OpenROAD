@@ -752,6 +752,11 @@ void SimulatedAnnealingCore<T>::fastSA()
   updateBestResult(cost);
 
   while (step <= max_num_step_) {
+    if (step == pause_step_) {
+      logger_->report("Pausing at step {}", pause_step_);
+      break;
+    }
+
     for (int i = 0; i < num_perturb_per_step_; i++) {
       saveState();
       perturb();

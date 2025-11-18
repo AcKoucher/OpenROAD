@@ -69,6 +69,7 @@ class SimulatedAnnealingCore
   void setFences(const std::map<int, odb::Rect>& fences);
   void setGuides(const std::map<int, odb::Rect>& guides);
   void setInitialSequencePair(const SequencePair& sequence_pair);
+  void setPauseStep(int pause_step) { pause_step_ = pause_step; }
   void disallowInvalidStates() { invalid_states_allowed_ = false; }
 
   virtual bool isValid() const;
@@ -168,6 +169,7 @@ class SimulatedAnnealingCore
   float init_temperature_ = 1.0;
   int max_num_step_ = 0;
   int num_perturb_per_step_ = 0;
+  int pause_step_{0};
 
   // seed for reproduciabilty
   std::mt19937 generator_;

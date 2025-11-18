@@ -110,6 +110,7 @@ class HierRTLMP
   void setTimingDriven();
   void setKeepClusteringData(bool keep_clustering_data);
   void setDataFlowDriven();
+  void setPauseStep(int pause_step) { pause_step_ = pause_step; }
 
   void setDebug(std::unique_ptr<MplObserver>& graphics);
   void setDebugShowBundledNets(bool show_bundled_nets);
@@ -312,6 +313,7 @@ class HierRTLMP
 
   // Fast SA hyperparameter
   float init_prob_ = 0.9;
+  int pause_step_{0};
   const int max_num_step_ = 2000;
   const int num_perturb_per_step_ = 500;
 

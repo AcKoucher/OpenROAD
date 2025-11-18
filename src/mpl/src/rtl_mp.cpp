@@ -60,7 +60,8 @@ bool MacroPlacer::place(const int num_threads,
                         const char* report_directory,
                         const bool keep_clustering_data,
                         const bool data_flow_driven,
-                        const bool timing_driven)
+                        const bool timing_driven,
+                        const int pause_step)
 {
   hier_rtlmp_->init();
   hier_rtlmp_->setClusterSize(
@@ -93,6 +94,8 @@ bool MacroPlacer::place(const int num_threads,
   if (timing_driven) {
     hier_rtlmp_->setTimingDriven();
   }
+  hier_rtlmp_->setPauseStep(pause_step);
+  logger_->metric("macro_place__pause_step", pause_step);
 
   hier_rtlmp_->setGuidanceRegions(guidance_regions_);
 
