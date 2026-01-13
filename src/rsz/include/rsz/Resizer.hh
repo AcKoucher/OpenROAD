@@ -495,6 +495,11 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   // Library analysis data
   std::unique_ptr<LibraryAnalysisData> lib_data_;
 
+  ////////////////////////////////////////////////////////////////
+  // API for timing-driven macro placement.
+  // Save slacks using wire load models.
+  void findWireLoadSlacks();
+
  protected:
   void init();
   double computeDesignArea();

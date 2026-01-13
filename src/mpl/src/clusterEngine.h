@@ -18,9 +18,15 @@
 #include "object.h"
 #include "odb/db.h"
 #include "odb/geom.h"
+#include "rsz/Resizer.hh"
+#include "sta/NetworkClass.hh"
 
 namespace par {
 class PartitionMgr;
+}
+
+namespace rsz {
+class Resizer;
 }
 
 namespace utl {
@@ -145,6 +151,7 @@ class ClusteringEngine
 
   void setTree(PhysicalHierarchy* tree);
   void setDataFlowDriven() { data_flow_driven_ = true; };
+  void setResizer(rsz::Resizer* resizer) { resizer_ = resizer; }
 
   // Methods to update the tree as the hierarchical
   // macro placement runs.
@@ -254,9 +261,13 @@ class ClusteringEngine
   void clearConnections();
   void buildNetListConnections();
   void buildDataFlowConnections();
+  void buildCriticalConnections();
   Net buildNet(odb::dbNet* db_net) const;
-  void connectClusters(const Net& net);
-  void connect(Cluster* a, Cluster* b, float connection_weight) const;
+  void connectClusters(const Net& net, bool critical_connections = false);
+  void connect(Cluster* a,
+               Cluster* b,
+               float connection_weight,
+               bool critical_connection = false) const;
 
   // Methods for data flow
   void createDataFlow();
@@ -294,6 +305,7 @@ class ClusteringEngine
   sta::dbNetwork* network_;
   utl::Logger* logger_;
   par::PartitionMgr* triton_part_;
+  rsz::Resizer* resizer_{nullptr};
   MplObserver* graphics_;
 
   Metrics* design_metrics_{nullptr};
@@ -311,8 +323,9 @@ class ClusteringEngine
   int max_std_cell_{0};
   int min_std_cell_{0};
 
-  // Variables for data flow:
   DataFlow data_connections_;
+  sta::NetSeq critical_nets_;
+
   // The register distance between two macros for
   // them to be considered connected when creating data flow.
   const int max_num_of_hops_{5};

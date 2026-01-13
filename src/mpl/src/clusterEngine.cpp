@@ -117,6 +117,14 @@ void ClusteringEngine::init()
 
   tree_->io_pads = getIOPads();
 
+  if (resizer_) {
+    critical_nets_ = resizer_->resizeWorstSlackNets();
+
+    if (critical_nets_.empty()) {
+      logger_->info(MPL, 66, "No critical nets found.");
+    }
+  }
+
   reportDesignData();
 }
 
@@ -1049,12 +1057,32 @@ void ClusteringEngine::buildDataFlowConnections()
   }
 }
 
+void ClusteringEngine::buildCriticalConnections()
+{
+  for (const sta::Net* sta_net : critical_nets_) {
+    odb::dbNet* db_net = network_->staToDb(sta_net);
+
+    if (!isValidNet(db_net)) {
+      continue;
+    }
+
+    Net net = buildNet(db_net);
+    connectClusters(net, true);
+  }
+}
+
 void ClusteringEngine::connect(Cluster* a,
                                Cluster* b,
-                               const float connection_weight) const
+                               const float connection_weight,
+                               const bool critical_connection) const
 {
-  a->addConnection(b, connection_weight);
-  b->addConnection(a, connection_weight);
+  if (critical_connection) {
+    a->addCriticalConnection(b, connection_weight);
+    b->addCriticalConnection(a, connection_weight);
+  } else {
+    a->addConnection(b, connection_weight);
+    b->addConnection(a, connection_weight);
+  }
 }
 
 float ClusteringEngine::computeConnWeight(const int hops)
@@ -1984,6 +2012,7 @@ void ClusteringEngine::rebuildConnections()
   clearConnections();
   buildNetListConnections();
   buildDataFlowConnections();
+  buildCriticalConnections();
 }
 
 void ClusteringEngine::clearConnections()
@@ -2035,7 +2064,8 @@ ClusteringEngine::Net ClusteringEngine::buildNet(odb::dbNet* db_net) const
   return net;
 }
 
-void ClusteringEngine::connectClusters(const Net& net)
+void ClusteringEngine::connectClusters(const Net& net,
+                                       const bool critical_connections)
 {
   if (net.driver_id == -1 || net.loads_ids.empty()
       || net.loads_ids.size() >= tree_->large_net_threshold) {
@@ -2048,7 +2078,7 @@ void ClusteringEngine::connectClusters(const Net& net)
   for (const int load_cluster_id : net.loads_ids) {
     if (load_cluster_id != net.driver_id) {
       Cluster* load = tree_->maps.id_to_cluster.at(load_cluster_id);
-      connect(driver, load, connection_weight);
+      connect(driver, load, connection_weight, critical_connections);
     }
   }
 }

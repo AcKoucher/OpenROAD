@@ -2610,6 +2610,13 @@ void Resizer::findResizeSlacks1()
   }
 }
 
+void Resizer::findWireLoadSlacks()
+{
+  init();
+  ensureLevelDrvrVertices();
+  findResizeSlacks1();
+}
+
 sta::NetSeq Resizer::resizeWorstSlackNets()
 {
   // Find the nets with the worst slack.

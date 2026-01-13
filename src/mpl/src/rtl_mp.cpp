@@ -24,9 +24,11 @@ MacroPlacer::MacroPlacer(sta::dbNetwork* network,
                          odb::dbDatabase* db,
                          sta::dbSta* sta,
                          utl::Logger* logger,
-                         par::PartitionMgr* tritonpart)
+                         par::PartitionMgr* tritonpart,
+                         rsz::Resizer* resizer)
 {
-  hier_rtlmp_ = std::make_unique<HierRTLMP>(network, db, logger, tritonpart);
+  hier_rtlmp_
+      = std::make_unique<HierRTLMP>(network, db, logger, tritonpart, resizer);
   logger_ = logger;
   db_ = db;
 }
@@ -57,7 +59,8 @@ bool MacroPlacer::place(const int num_threads,
                         const float min_ar,
                         const char* report_directory,
                         const bool keep_clustering_data,
-                        const bool data_flow_driven)
+                        const bool data_flow_driven,
+                        const bool timing_driven)
 {
   hier_rtlmp_->init();
   hier_rtlmp_->setClusterSize(
@@ -82,9 +85,15 @@ bool MacroPlacer::place(const int num_threads,
   hier_rtlmp_->setReportDirectory(report_directory);
   hier_rtlmp_->setNumThreads(num_threads);
   hier_rtlmp_->setKeepClusteringData(keep_clustering_data);
+
   if (data_flow_driven) {
     hier_rtlmp_->setDataFlowDriven();
   }
+
+  if (timing_driven) {
+    hier_rtlmp_->setTimingDriven();
+  }
+
   hier_rtlmp_->setGuidanceRegions(guidance_regions_);
 
   hier_rtlmp_->run();
