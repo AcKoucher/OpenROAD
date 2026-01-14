@@ -240,6 +240,7 @@ cc_test(
     deps = [
         "//src/mpl",
         "//src/odb",
+        "//src/rsz",
         "//src/tst",
         "//src/utl",
         "@googletest//:gtest",
