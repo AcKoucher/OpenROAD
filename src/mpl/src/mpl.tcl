@@ -43,7 +43,7 @@ proc rtl_macro_placer { args } {
          -macro_blockage_weight -target_util \
          -min_ar \
          -report_directory \
-         -write_macro_placement } \
+         -write_macro_placement \
          -pause_at_step } \
     flags {-keep_clustering_data -data_flow_driven -timing_driven}
 
