@@ -1560,6 +1560,68 @@ dbSet<dbRSeg> dbNet::getRSegs()
   return dbSet<dbRSeg>(net, block->r_seg_itr_);
 }
 
+bool dbNet::hasExactRSegShapeMapping(bool ignore_vias)
+{
+  dbWire* wire = getWire();
+  utl::Logger* logger = getImpl()->getLogger();
+
+  if (wire == nullptr) {
+    logger->error(
+        utl::ODB,
+        602,
+        "Could not evaluate RSeg <-> Shape mapping for net {}. No wire found.",
+        getName());
+  }
+
+  bool exact_mapping = true;
+
+  // Check for N Rsegs -> 1 Shape.
+  std::set<int> rseg_shape_ids;
+  for (dbRSeg* rseg : getRSegs()) {
+    const int shape_id = rseg->getShapeId();
+    dbShape shape;
+    wire->getShape(shape_id, shape);
+
+    if (ignore_vias && !shape.isSegment()) {
+      continue;
+    }
+
+    if (!rseg_shape_ids.insert(shape_id).second) {
+      exact_mapping = false;
+
+      logger->warn(utl::ODB,
+                   600,
+                   "Net {}: shape {} is referenced by multiple rsegs.",
+                   getName(),
+                   shape_id);
+    }
+  }
+
+  // Check for orphan shapes.
+  dbWireShapeItr shape_itr;
+  dbShape shape;
+  for (shape_itr.begin(wire); shape_itr.next(shape);) {
+    if (ignore_vias && !shape.isSegment()) {
+      continue;
+    }
+
+    const int shape_id = shape_itr.getShapeId();
+
+    if (!rseg_shape_ids.contains(shape_id)) {
+      exact_mapping = false;
+
+      logger->warn(utl::ODB,
+                   601,
+                   "Shape {} with id {} in net {} has no rseg.",
+                   shape.getBox(),
+                   shape_id,
+                   getName());
+    }
+  }
+
+  return exact_mapping;
+}
+
 void dbNet::reverseRSegs()
 {
   dbSet<dbRSeg> rSet = getRSegs();

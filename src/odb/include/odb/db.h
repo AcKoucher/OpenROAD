@@ -2326,6 +2326,11 @@ class dbNet : public dbObject
   dbSet<dbRSeg> getRSegs();
 
   ///
+  /// Verify that this net's RSeg <-> wire-shape mapping is exactly 1:1.
+  ///
+  bool hasExactRSegShapeMapping(bool ignore_vias = false);
+
+  ///
   /// compact internal capnode number'
   ///
   void collapseInternalCapNum(FILE* cap_node_map);
