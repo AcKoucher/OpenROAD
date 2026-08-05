@@ -2159,6 +2159,7 @@ uint32_t extMain::readSPEF(char* filename,
   }
   _spef->_moreToRead = moreToRead;
   _spef->incr_rRun();
+  _spef->setUseIdsFlag(diff, calib);
 
   if (_extRun == 0) {
     getPrevControl();
